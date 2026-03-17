@@ -99,26 +99,37 @@ export default function LivingNeedsPage() {
     allowsSoftImprovements: true,
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
 
     try {
       const basicInfo = JSON.parse(sessionStorage.getItem("basicInfo") || "{}");
       const spaceInfo = JSON.parse(sessionStorage.getItem("spaceInfo") || "{}");
       
+      // 验证必要数据
+      if (!basicInfo.layoutType || !basicInfo.areaSqm) {
+        setError("缺少基础信息，请返回第一步重新填写");
+        setIsSubmitting(false);
+        return;
+      }
+
       const fullData = {
         ...basicInfo,
         ...spaceInfo,
         ...formData,
-        areaSqm: parseInt(basicInfo.areaSqm),
-        totalFloors: parseInt(basicInfo.totalFloors),
+        areaSqm: parseInt(basicInfo.areaSqm) || 0,
+        totalFloors: parseInt(basicInfo.totalFloors) || 0,
         dampSigns: spaceInfo.dampSigns || [],
       };
 
       await submitEvaluation(fullData);
-    } catch (error) {
-      console.error("Submit error:", error);
+    } catch (err: any) {
+      console.error("Submit error:", err);
+      setError(err.message || "提交失败，请检查网络连接或联系管理员");
       setIsSubmitting(false);
     }
   };
@@ -222,6 +233,13 @@ export default function LivingNeedsPage() {
           </div>
         )}
       </section>
+
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+          <strong>错误：</strong>{error}
+        </div>
+      )}
 
       {/* Submit Buttons */}
       <div className="flex gap-3">
