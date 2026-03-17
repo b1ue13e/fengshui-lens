@@ -17,13 +17,13 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
       y: [20, 0],
       scale: [0.9, 1],
       opacity: [0, 1],
-      transition: { type: "spring", stiffness: 300, damping: 20 },
+      transition: { type: "spring" as const, stiffness: 300, damping: 20 },
     },
     // 沉闷与微颤 - 平/凶带吉
     cautious: {
       x: [-5, 5, -5, 5, 0],
       opacity: [0, 1],
-      transition: { duration: 0.5, ease: "easeInOut" },
+      transition: { duration: 0.5, ease: "easeInOut" as const },
     },
     // 沉重坠落与爆震 - 大凶 (Shake effect)
     avoid: {
@@ -37,7 +37,7 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
       transition: { 
         duration: 0.6, 
         times: [0, 0.4, 0.7, 1],
-        ease: "circOut" 
+        ease: "circOut" as const
       },
     },
   };

@@ -161,14 +161,15 @@ export default async function MetricsPage() {
     );
   }
   
-  const { metrics, logs, sampleSize } = shadowData;
+  const { metrics = {} as any, logs = [], sampleSize = 50 } = shadowData;
   
   // 计算 Rent Rate by Goal
-  const rentByGoal = Object.entries(metrics.goalDistribution).map(([goal, total]) => {
-    const rentCount = logs.filter(
-      (l) => l.goal === goal && l.verdict === 'rent'
+  const rentByGoal = Object.entries(metrics.goalDistribution || {}).map(([goal, total]: [string, any]) => {
+    const totalNum = Number(total) || 0;
+    const rentCount = (logs || []).filter(
+      (l: any) => l.goal === goal && l.verdict === 'rent'
     ).length;
-    return { goal, total, rentRate: Math.round((rentCount / total) * 100) };
+    return { goal, total: totalNum, rentRate: totalNum > 0 ? Math.round((rentCount / totalNum) * 100) : 0 };
   });
 
   const getStatusColor = (status?: string) => {
