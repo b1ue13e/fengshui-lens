@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Evaluation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  layoutType    String
+  areaSqm       Int
+  orientation   String
+  floorLevel    String
+  totalFloors   Int
+  hasElevator   Boolean
+  buildingAge   String
+
+  hasWestFacingWindow   Boolean
+  windowExposure        String
+  
+  facesMainRoad         Boolean
+  nearElevator          Boolean
+  unitPosition          String
+  
+  hasBalcony            Boolean
+  kitchenType           String
+  bathroomPosition      String
+  
+  bedPosition           String
+  deskPosition          String
+  
+  ventilation           String
+  dampSigns             String?
+  
+  isShared              Boolean
+  roommateSituation     String?
+
+  primaryGoal           String
+  monthlyBudget         String
+  allowsLightRenovation Boolean
+  allowsFurnitureMove   Boolean
+  allowsSoftImprovements Boolean
+
+  scoreLighting      Int?
+  scoreNoise         Int?
+  scoreDampness      Int?
+  scorePrivacy       Int?
+  scoreCirculation   Int?
+  scoreFocus         Int?
+  scoreOverall       Int?
+
+  detectedRisks      String?
+  recommendedActions String?
+  chatScripts        String?
+  summaryText        String?
+  
+  verdict            String?
+
+  @@map("evaluations")
+}
