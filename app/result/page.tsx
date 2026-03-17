@@ -136,7 +136,7 @@ export default function ResultPage() {
     },
   };
 
-  const config = verdictConfig[evaluation.verdict];
+  const config = verdictConfig[evaluation.verdict as keyof typeof verdictConfig];
   const VerdictIcon = config.icon;
 
   return (
