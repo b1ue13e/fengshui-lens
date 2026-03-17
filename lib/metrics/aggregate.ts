@@ -5,6 +5,10 @@
  * - 影子日志提供实时运行数据（Input Quality + Engine Output + User Feedback）
  * - 验证集提供校准基准（Calibration 指标）
  * - 指标 8-10 样本不足时显示 "insufficient"
+ * 
+ * 数据来源标签：
+ * - Real-time shadow logs: 实时影子日志
+ * - Static validation set (15 cases): 15套静态验证案例
  */
 
 import { shadowLogs, type ShadowLogEntry } from '../feedback/shadow-logger';
@@ -27,12 +31,12 @@ export interface MetricsSummary {
 
   // === Engine Output (Real-time from shadow logs) ===
   engineOutput: {
-    verdictDistribution: {           // 4. 输出 verdict 分布
-      pass: number;
-      caution: number;
-      block: number;
+    verdictDistribution: {           // 4. 输出 verdict 分布 (统一使用引擎枚举)
+      rent: number;
+      cautious: number;
+      avoid: number;
     };
-    passByPrimaryGoal: Record<string, number>;  // 5. 按主目标 Pass 比例
+    rentByPrimaryGoal: Record<string, number>;  // 5. 按主目标 Rent 比例
     overrideTriggerRate: number;     // 6. 触发 override 比例（来自验证集）
     decisionNoteRate: number;        // 7. 触发 Decision Note 比例
   };
@@ -56,6 +60,7 @@ export type InsufficientMetric<T> =
   | { status: 'insufficient'; sampleSize: number };
 
 const SAMPLE_THRESHOLD = 5;
+const VALIDATION_CASE_COUNT = 15;  // 静态验证集大小
 
 // ===== Aggregation Functions =====
 
@@ -75,33 +80,40 @@ function calculateAvgWarnings(logs: ShadowLogEntry[]) {
   return Math.round((total / withQuality.length) * 10) / 10;
 }
 
+/** 
+ * Verdict 分布 - 统一使用引擎枚举 rent/cautious/avoid
+ * 不再做 pass/caution/block 映射，避免枚举不一致
+ */
 function calculateVerdictDistribution(logs: ShadowLogEntry[]) {
-  const dist = { pass: 0, caution: 0, block: 0 };
+  const dist = { rent: 0, cautious: 0, avoid: 0 };
   logs.forEach(log => {
     const v = log.result.verdict;
-    // 引擎 verdict: 'rent' = pass, 'cautious' = caution, 'avoid' = block
-    if (v === 'rent') dist.pass++;
-    else if (v === 'cautious') dist.caution++;
-    else if (v === 'avoid') dist.block++;
+    if (v === 'rent' || v === 'cautious' || v === 'avoid') {
+      dist[v]++;
+    }
   });
   return dist;
 }
 
-function calculatePassByPrimaryGoal(logs: ShadowLogEntry[]) {
-  const byGoal: Record<string, { total: number; pass: number }> = {};
+/** 
+ * 按主目标统计 Rent 比例
+ * 统一命名：rent 而非 pass
+ */
+function calculateRentByPrimaryGoal(logs: ShadowLogEntry[]) {
+  const byGoal: Record<string, { total: number; rent: number }> = {};
   
   logs.forEach(log => {
     const goal = log.input.primaryGoal;
     if (!goal) return;
     
-    if (!byGoal[goal]) byGoal[goal] = { total: 0, pass: 0 };
+    if (!byGoal[goal]) byGoal[goal] = { total: 0, rent: 0 };
     byGoal[goal].total++;
-    if (log.result.verdict === 'rent') byGoal[goal].pass++;
+    if (log.result.verdict === 'rent') byGoal[goal].rent++;
   });
 
   const result: Record<string, number> = {};
   Object.entries(byGoal).forEach(([goal, stats]) => {
-    result[goal] = Math.round((stats.pass / stats.total) * 100);
+    result[goal] = Math.round((stats.rent / stats.total) * 100);
   });
   return result;
 }
@@ -166,7 +178,7 @@ export function getMetricsSummary(): MetricsSummary {
     },
     engineOutput: {
       verdictDistribution: calculateVerdictDistribution(logs),
-      passByPrimaryGoal: calculatePassByPrimaryGoal(logs),
+      rentByPrimaryGoal: calculateRentByPrimaryGoal(logs),
       overrideTriggerRate: Math.round(validationMetrics.overrideTriggerRate * 100),
       decisionNoteRate: calculateDecisionNoteRate(logs),
     },
@@ -183,6 +195,7 @@ export function getMetricsSummary(): MetricsSummary {
 export interface MetricsDisplay {
   sections: Array<{
     title: string;
+    dataSource: string;  // 数据来源标签
     metrics: Array<{
       label: string;
       value: string;
@@ -196,22 +209,26 @@ export function formatMetricsForDisplay(summary: MetricsSummary): MetricsDisplay
   const { inputQuality, engineOutput, userFeedback, calibration } = summary;
   
   const formatRate = (m: InsufficientMetric<number>) => 
-    m.status === 'insufficient' ? 'N/A' : `${m.value}%`;
+    m.status === 'insufficient' ? `N/A (n=${m.sampleSize})` : `${m.value}% (n=${m.sampleSize})`;
+
+  const total = inputQuality.totalEvaluations;
+  const dist = engineOutput.verdictDistribution;
 
   return {
     sections: [
       {
         title: 'Input Quality',
+        dataSource: 'Real-time shadow logs',
         metrics: [
           { 
             label: 'Total Evaluations', 
-            value: String(inputQuality.totalEvaluations),
-            status: inputQuality.totalEvaluations > 10 ? 'good' : 'neutral',
+            value: String(total),
+            status: total > 10 ? 'good' : 'neutral',
           },
           { 
             label: 'High Confidence', 
             value: String(inputQuality.confidenceDistribution.high),
-            detail: `${Math.round(inputQuality.confidenceDistribution.high / Math.max(inputQuality.totalEvaluations, 1) * 100)}%`,
+            detail: `${Math.round(inputQuality.confidenceDistribution.high / Math.max(total, 1) * 100)}%`,
           },
           { 
             label: 'Avg Warnings/Input', 
@@ -222,15 +239,17 @@ export function formatMetricsForDisplay(summary: MetricsSummary): MetricsDisplay
       },
       {
         title: 'Engine Output',
+        dataSource: 'Real-time shadow logs',
         metrics: [
           { 
-            label: 'Pass Rate', 
-            value: `${Math.round(engineOutput.verdictDistribution.pass / Math.max(inputQuality.totalEvaluations, 1) * 100)}%`,
+            label: 'Rent Rate', 
+            value: `${Math.round(dist.rent / Math.max(total, 1) * 100)}%`,
+            detail: `rent: ${dist.rent}, cautious: ${dist.cautious}, avoid: ${dist.avoid}`,
           },
           { 
             label: 'Override Trigger Rate', 
             value: `${engineOutput.overrideTriggerRate}%`,
-            detail: 'From validation cases',
+            detail: `From validation set (n=${VALIDATION_CASE_COUNT})`,
           },
           { 
             label: 'Decision Note Rate', 
@@ -240,6 +259,7 @@ export function formatMetricsForDisplay(summary: MetricsSummary): MetricsDisplay
       },
       {
         title: 'User Feedback',
+        dataSource: 'Real-time shadow logs',
         metrics: [
           { 
             label: 'Positive Feedback', 
@@ -254,23 +274,24 @@ export function formatMetricsForDisplay(summary: MetricsSummary): MetricsDisplay
           { 
             label: 'Cautious Negative Rate', 
             value: formatRate(userFeedback.cautiousNegativeRate),
-            detail: 'Negative feedback on Caution verdicts',
+            detail: 'Negative feedback on Cautious verdicts',
           },
         ],
       },
       {
         title: 'Calibration',
+        dataSource: `Static validation set (${VALIDATION_CASE_COUNT} cases)`,
         metrics: [
           { 
             label: 'Top Risk Hit Rate', 
             value: `${calibration.topRiskHitRate}%`,
-            detail: 'From validation cases',
+            detail: `Based on ${VALIDATION_CASE_COUNT} validation cases`,
             status: calibration.topRiskHitRate > 60 ? 'good' : 'warning',
           },
           { 
             label: 'First Action Acceptable', 
             value: `${calibration.firstActionAcceptableRate}%`,
-            detail: 'From validation cases',
+            detail: `Based on ${VALIDATION_CASE_COUNT} validation cases`,
             status: calibration.firstActionAcceptableRate > 70 ? 'good' : 'warning',
           },
         ],

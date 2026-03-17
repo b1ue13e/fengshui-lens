@@ -1,17 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getMetricsSummary, formatMetricsForDisplay, type MetricsSummary } from '@/lib/metrics/aggregate';
+import { getMetricsSummary, formatMetricsForDisplay, type MetricsSummary, type MetricsDisplay } from '@/lib/metrics/aggregate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 export default function MetricsPage() {
   const [summary, setSummary] = useState<MetricsSummary | null>(null);
+  const [display, setDisplay] = useState<MetricsDisplay | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    setSummary(getMetricsSummary());
+    const s = getMetricsSummary();
+    setSummary(s);
+    setDisplay(formatMetricsForDisplay(s));
   }, []);
 
   if (!mounted) {
@@ -25,7 +28,7 @@ export default function MetricsPage() {
     );
   }
 
-  if (!summary) return null;
+  if (!summary || !display) return null;
 
   const { inputQuality, engineOutput, userFeedback, calibration } = summary;
   const total = inputQuality.totalEvaluations || 1;
@@ -45,6 +48,9 @@ export default function MetricsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">SpaceRisk Metrics</h1>
           <p className="text-slate-400">Beta 内测数据面板 · 12 核心指标</p>
+          <p className="text-xs text-slate-500 mt-1">
+            统一枚举: rent / cautious / avoid | 样本阈值: n≥5
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -55,6 +61,7 @@ export default function MetricsPage() {
                 <Badge variant="outline" className="bg-blue-500/20 text-blue-400">1-3</Badge>
                 Input Quality
               </CardTitle>
+              <p className="text-xs text-slate-500">{display.sections[0]?.dataSource}</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
@@ -91,12 +98,13 @@ export default function MetricsPage() {
                 <Badge variant="outline" className="bg-blue-500/20 text-blue-400">4-7</Badge>
                 Engine Output
               </CardTitle>
+              <p className="text-xs text-slate-500">{display.sections[1]?.dataSource}</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Pass Rate</span>
+                <span className="text-slate-400">Rent Rate</span>
                 <span className="font-mono">
-                  {Math.round(engineOutput.verdictDistribution.pass / total * 100)}%
+                  {Math.round(engineOutput.verdictDistribution.rent / total * 100)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -112,15 +120,15 @@ export default function MetricsPage() {
               </div>
               <div className="pt-2 border-t border-slate-800">
                 <span className="text-xs text-slate-500">Verdict Distribution</span>
-                <div className="flex gap-2 mt-1">
+                <div className="flex gap-2 mt-1 flex-wrap">
                   <Badge className="bg-green-500/20 text-green-400">
-                    Pass: {engineOutput.verdictDistribution.pass}
+                    rent: {engineOutput.verdictDistribution.rent}
                   </Badge>
                   <Badge className="bg-yellow-500/20 text-yellow-400">
-                    Caution: {engineOutput.verdictDistribution.caution}
+                    cautious: {engineOutput.verdictDistribution.cautious}
                   </Badge>
                   <Badge className="bg-red-500/20 text-red-400">
-                    Block: {engineOutput.verdictDistribution.block}
+                    avoid: {engineOutput.verdictDistribution.avoid}
                   </Badge>
                 </div>
               </div>
@@ -134,13 +142,14 @@ export default function MetricsPage() {
                 <Badge variant="outline" className="bg-blue-500/20 text-blue-400">8-10</Badge>
                 User Feedback
               </CardTitle>
+              <p className="text-xs text-slate-500">{display.sections[2]?.dataSource}</p>
             </CardHeader>
             <CardContent className="space-y-4">
               {userFeedback.positiveRate.status === 'insufficient' ? (
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Sample Size</span>
                   <Badge className={getStatusColor('insufficient')}>
-                    {userFeedback.positiveRate.sampleSize} (need 5+)
+                    n={userFeedback.positiveRate.sampleSize} (need ≥5)
                   </Badge>
                 </div>
               ) : (
@@ -150,16 +159,29 @@ export default function MetricsPage() {
                     <Badge className={getStatusColor(
                       (userFeedback.positiveRate as any).value > 70 ? 'good' : 'warning'
                     )}>
-                      {(userFeedback.positiveRate as any).value}%
+                      {(userFeedback.positiveRate as any).value}% 
+                      <span className="text-xs opacity-70 ml-1">
+                        (n={(userFeedback.positiveRate as any).sampleSize})
+                      </span>
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Negative Rate</span>
-                    <span className="font-mono">{(userFeedback.negativeRate as any).value}%</span>
+                    <span className="font-mono">
+                      {(userFeedback.negativeRate as any).value}%
+                      <span className="text-xs text-slate-500 ml-1">
+                        (n={(userFeedback.negativeRate as any).sampleSize})
+                      </span>
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Cautious Negative Rate</span>
-                    <span className="font-mono">{(userFeedback.cautiousNegativeRate as any).value}%</span>
+                    <span className="font-mono">
+                      {(userFeedback.cautiousNegativeRate as any).value}%
+                      <span className="text-xs text-slate-500 ml-1">
+                        (n={(userFeedback.cautiousNegativeRate as any).sampleSize})
+                      </span>
+                    </span>
                   </div>
                 </>
               )}
@@ -173,6 +195,7 @@ export default function MetricsPage() {
                 <Badge variant="outline" className="bg-blue-500/20 text-blue-400">11-12</Badge>
                 Calibration
               </CardTitle>
+              <p className="text-xs text-slate-500">{display.sections[3]?.dataSource}</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
@@ -198,21 +221,22 @@ export default function MetricsPage() {
                 </div>
               </div>
               <p className="text-xs text-slate-500 pt-2 border-t border-slate-800">
-                来自 15 个静态验证案例
+                Based on 15 static validation cases
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Pass by Primary Goal */}
-        {Object.keys(engineOutput.passByPrimaryGoal).length > 0 && (
+        {/* Rent Rate by Primary Goal */}
+        {Object.keys(engineOutput.rentByPrimaryGoal).length > 0 && (
           <Card className="bg-slate-900 border-slate-800 mt-6">
             <CardHeader>
-              <CardTitle className="text-lg">Pass Rate by Primary Goal</CardTitle>
+              <CardTitle className="text-lg">Rent Rate by Primary Goal</CardTitle>
+              <p className="text-xs text-slate-500">Real-time shadow logs</p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(engineOutput.passByPrimaryGoal).map(([goal, rate]) => (
+                {Object.entries(engineOutput.rentByPrimaryGoal).map(([goal, rate]) => (
                   <div key={goal} className="text-center p-3 bg-slate-800/50 rounded">
                     <div className="text-2xl font-bold">{rate}%</div>
                     <div className="text-xs text-slate-400 capitalize">{goal.replace('_', ' ')}</div>
@@ -222,6 +246,19 @@ export default function MetricsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* 说明卡片 */}
+        <Card className="bg-slate-900/50 border-slate-800 mt-6">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold text-slate-300 mb-2">指标说明</h3>
+            <ul className="text-xs text-slate-500 space-y-1">
+              <li>• <strong>Verdict 统一枚举</strong>: rent (值得租) / cautious (谨慎) / avoid (避免)</li>
+              <li>• <strong>实时指标</strong>: 来自 shadow logs，显示 n= 样本数</li>
+              <li>• <strong>校准指标</strong>: 来自 15 套静态验证案例</li>
+              <li>• <strong>样本不足</strong>: n&lt;5 时显示 N/A，避免误导</li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
