@@ -110,9 +110,19 @@ export default function LivingNeedsPage() {
       const basicInfo = JSON.parse(sessionStorage.getItem("basicInfo") || "{}");
       const spaceInfo = JSON.parse(sessionStorage.getItem("spaceInfo") || "{}");
       
+      console.log("[Submit] basicInfo:", basicInfo);
+      console.log("[Submit] spaceInfo:", spaceInfo);
+      console.log("[Submit] formData:", formData);
+      
       // 验证必要数据
       if (!basicInfo.layoutType || !basicInfo.areaSqm) {
-        setError("缺少基础信息，请返回第一步重新填写");
+        setError("❌ 缺少基础信息，请返回第一步重新填写");
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (!formData.primaryGoal || !formData.monthlyBudget) {
+        setError("❌ 请选择居住目标和预算范围");
         setIsSubmitting(false);
         return;
       }
@@ -125,11 +135,13 @@ export default function LivingNeedsPage() {
         totalFloors: parseInt(basicInfo.totalFloors) || 0,
         dampSigns: spaceInfo.dampSigns || [],
       };
+      
+      console.log("[Submit] fullData:", fullData);
 
       await submitEvaluation(fullData);
     } catch (err: any) {
-      console.error("Submit error:", err);
-      setError(err.message || "提交失败，请检查网络连接或联系管理员");
+      console.error("[Submit] Error:", err);
+      setError(`❌ 提交失败: ${err.message || "未知错误"}`);
       setIsSubmitting(false);
     }
   };
