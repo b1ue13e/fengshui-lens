@@ -1,327 +1,533 @@
-# FengShui Lens · 租房风险评估引擎
+<div align="center">
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js" />
-  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react" />
-  <img src="https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript" />
-  <img src="https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss" />
-  <img src="https://img.shields.io/badge/Vitest-Test-6E9F18?style=flat-square&logo=vitest" />
-</p>
+# SpaceRisk
 
-<p align="center">
-  <b>基于用户场景的智能租房风险评估系统</b><br/>
-  提供 <code>rent</code> / <code>cautious</code> / <code>avoid</code> 三档判决 + 可操作建议
-</p>
+**A conservative rental decision engine for scenario-aware housing evaluation**
 
-<p align="center">
-  <a href="https://fengshui-lens.vercel.app" target="_blank">🌐 在线体验</a> ·
-  <a href="#-快速开始">⚡ 快速开始</a> ·
-  <a href="#-架构文档">📚 架构文档</a> ·
-  <a href="#-api-参考">🔌 API</a>
-</p>
+[![Next.js](https://img.shields.io/badge/Next.js-App_Router-black)](#)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](#)
+[![Tests](https://img.shields.io/badge/Tests-passing-brightgreen)](#)
+[![Status](https://img.shields.io/badge/Status-Beta-orange)](#)
+[![Strategy](https://img.shields.io/badge/Strategy-Conservative-yellow)](#)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)](#)
 
----
+**SpaceRisk** 是一个**保守策略版**的租房决策辅助引擎。  
+它基于结构化房源信息输出 `verdict`、Top Risks、Top Actions、`decisionNote` 与 `confidence / warnings`，帮助用户在不同目标场景下更快判断一套房值不值得租。
 
-## ✨ 功能特性
+[在线体验](https://fengshui-lens.vercel.app) · [Metrics 面板](https://fengshui-lens.vercel.app/dev/metrics)  
+*Beta only / internal observation*
 
-### 核心评估
-- **场景化评估** - 根据用户目标（备考/WFH/情侣/老人等）动态调整权重
-- **纯函数引擎** - 评估逻辑无副作用，可预测、可测试
-- **三档判决** - `rent` (值得租) / `cautious` (谨慎考虑) / `avoid` (不建议租)
-- **Decision Note** - 对谨慎案例自动说明决策依据
-
-### 数据采集
-- **智能提取** - 支持从小红书等房源链接自动提取结构化数据
-- **输入质量评估** - 自动检测数据缺失，标记置信度 (high/medium/low)
-- **Shadow Log** - 全链路影子日志，用于 Beta 阶段观测
-
-### Beta 观测面板 (`/dev/metrics`)
-- **12 核心指标** - 混合实时数据与静态验证集
-- **反馈闭环** - 用户反馈率、准确率追踪
-- **校准监控** - 首要风险命中率、建议可接受率
+</div>
 
 ---
 
-## 🚀 快速开始
+## 目录
 
-### 环境要求
-- Node.js 18+
-- npm / yarn / pnpm
+- [项目定位](#项目定位)
+- [为什么做它](#为什么做它)
+- [输出内容](#输出内容)
+- [设计原则](#设计原则)
+- [当前状态](#当前状态)
+- [在线体验](#在线体验)
+- [系统架构](#系统架构)
+- [快速开始](#快速开始)
+- [最小示例](#最小示例)
+- [输入质量模型](#输入质量模型)
+- [验证与观测](#验证与观测)
+- [项目结构](#项目结构)
+- [当前边界](#当前边界)
+- [Beta 使用建议](#beta-使用建议)
+- [路线图](#路线图)
+- [License](#license)
 
-### 安装
+---
+
+## 项目定位
+
+SpaceRisk 不是"房屋娱乐评分器"，也不是"黑盒 AI 推荐器"。
+
+它更接近一个**保守型租房决策辅助引擎**，专注回答四个问题：
+
+1. **这套房值不值得租**
+2. **最大的问题是什么**
+3. **先改什么最划算**
+4. **哪些问题更像结构性缺陷，不值得继续补救**
+
+它的目标不是替代人的最终判断，而是把零散房源信息压缩成一个**更可执行、可解释、可验证**的决策输出。
+
+---
+
+## 为什么做它
+
+租房最难的部分，不是看到房源信息，而是把零散信息转成**可信判断**。
+
+现实中的常见问题：
+
+- 房源信息很多，但缺少结论
+- 一些工具只有泛泛分析，没有明确决策
+- "能不能租"和"先改什么"经常混在一起
+- 结构性缺陷与可低成本补救的问题没有被区分
+
+SpaceRisk 的思路是：
+
+- 先给出一个**保守但稳定的 verdict**
+- 再按场景输出**最值得优先关注的风险**
+- 再输出**更像人会先做的动作**
+- 最后把"其实更适合换房"的情况，用 `decisionNote` 单独表达出来
+
+---
+
+## 输出内容
+
+给定一套标准化输入，`evaluate()` 当前返回以下核心字段：
+
+### `verdict`
+最终结论：
+
+- `rent`
+- `cautious`
+- `avoid`
+
+### `overallScore`
+0–100 的辅助分值，用于帮助理解 verdict。  
+当前版本更重视 **verdict 稳定性**，而不是追求分数本身的"精确感"。
+
+### `risks`
+当前场景下排序后的 Top Risks。  
+风险层只回答：
+
+> **这套房最严重的问题是什么。**
+
+### `actions`
+当前房源条件下排序后的 Top Actions。  
+建议层只回答：
+
+> **在这套房上，先做什么最值。**
+
+### `decisionNote`
+用于表达结构性缺陷或低改造收益场景。  
+它**不参与 action card 排序**。
+
+典型场景包括：
+
+- 情侣 + 陌生人合租
+- 老人 + 无电梯
+- 场景需求与房源结构明显冲突
+
+### `confidence / warnings`
+反映的是：
+
+> **输入转换可靠度**
+
+而不是：
+
+> **引擎判定正确率**
+
+这能帮助开发者区分：
+
+- 规则问题
+- 排序问题
+- 输入质量问题
+
+---
+
+## 设计原则
+
+### 1. 保守策略优先
+当前版本宁可输出 `cautious`，也不轻易放过高风险房源。
+
+### 2. verdict 稳定性优先
+在当前阶段，SpaceRisk 更重视 verdict 的稳定性，而不是过早追求排序的"完美拟合"。
+
+### 3. 三层分离
+系统明确拆分为三层：
+
+- **Risk Ranking**：什么问题最严重
+- **Recommendation Ranking**：先做什么最值
+- **Decision Note**：这类问题是不是更像结构性缺陷
+
+### 4. `evaluate()` 保持纯函数
+`evaluate()` 具备以下约束：
+
+- 相同输入，得到相同输出
+- 无日志副作用
+- 不依赖环境状态
+- 可单测、可复用、可回归
+
+### 5. 输入质量单独处理
+输入质量与引擎判断分开处理。  
+系统不会假装自己在低质量输入下仍然"什么都知道"。
+
+---
+
+## 当前状态
+
+当前版本为 **Beta / 保守策略版**。
+
+### 当前相对稳定的能力
+
+- `verdict` 在当前验证案例中表现稳定
+- override / fatal combo 触发率已控制在较低水平
+- `decisionNote` 已从 action 排序中独立出来
+- `/dev/cases` 可用于验证案例回放
+- `/dev/metrics` 可用于 Beta 阶段数据观测
+
+### 当前仍在持续校准的部分
+
+- Top Risk 命中率
+- First Action 可接受率
+- 部分输入清洗规则
+- 个别边界场景的规则覆盖（如北向采光）
+
+### 当前更合适的理解方式
+
+> **一个保守型租房决策辅助引擎**  
+> 而不是一个"已经充分验证的自动决策系统"。
+
+---
+
+## 在线体验
+
+- **App**: https://fengshui-lens.vercel.app
+- **Metrics**: https://fengshui-lens.vercel.app/dev/metrics
+
+> 说明：这些页面当前更适合 Beta 观测与内部验证，不代表系统已经完成大规模外部验证。
+
+---
+
+## 系统架构
+
+项目当前大致分为四层：
+
+### 1) Input / Adapter
+原始房源数据 → 标准化引擎输入
+
+职责：
+
+- 原始字段解析
+- 安全默认值降级
+- transform warnings 生成
+- confidence 计算
+
+典型模块：
+
+- `lib/adapters/listing-transformer.ts`
+
+---
+
+### 2) Engine
+评分、风险识别、建议排序、verdict、decision note
+
+职责：
+
+- 风险层：识别并排序风险
+- 建议层：识别并排序动作
+- 决策层：生成 decision note
+- 输出稳定的结构化结果
+
+典型模块：
+
+- `lib/engine/*`
+
+---
+
+### 3) Feedback / Logging
+shadow logs、用户反馈、metrics 聚合
+
+职责：
+
+- 记录输入与结果
+- 记录用户主观反馈
+- 产出 Beta 观测指标
+- 支撑 `/dev/metrics`
+
+典型模块：
+
+- `lib/feedback/*`
+- `lib/metrics/*`
+
+---
+
+### 4) UI / Dev Tools
+报告页、对比页、案例验证页、指标页
+
+职责：
+
+- 展示 report / compare
+- 验证案例回放
+- Beta 阶段内部观测
+- 调试与校准支持
+
+典型入口：
+
+- `/dev/cases`
+- `/dev/metrics`
+
+---
+
+## 快速开始
+
+### 安装依赖
 
 ```bash
-# 克隆项目
-git clone https://github.com/你的用户名/fengshui-lens.git
-cd fengshui-lens
-
-# 安装依赖
 npm install
-
-# 配置环境变量
-cp .env.example .env.local
-# 编辑 .env.local，填入必要的 API Key
 ```
 
-### 开发模式
+### 本地运行
 
 ```bash
 npm run dev
 ```
 
-访问 http://localhost:3000
-
-### 构建
+### 运行测试
 
 ```bash
-npm run build
-npm start
+npm test
 ```
 
-### 测试
+### 常用开发页面
 
-```bash
-npm test              # 交互模式
-npm run test:run      # 一次性运行
-```
+- `/dev/cases` - 验证案例回放
+- `/dev/metrics` - Beta 观测面板
 
 ---
 
-## 🏗️ 架构文档
+## 最小示例
 
-### 评估流程
-
-```
-房源链接/手动输入
-      ↓
-┌─────────────────┐
-│ Adapter Layer   │  ← 数据清洗 + 生成 inputQuality
-│ (transform)     │    (confidence, warnings)
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│ 纯函数 evaluate │  ← 核心业务逻辑
-│ (engine)        │    无副作用，可预测
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│ Shadow Logger   │  ← 记录评估结果
-│ (feedback)      │    用于 Beta 观测
-└─────────────────┘
-         ↓
-   展示结果 + 收集反馈
-```
-
-### 项目结构
-
-```
-fengshui-lens/
-├── app/                      # Next.js App Router
-│   ├── api/                  # API 路由
-│   │   ├── extract-listing/  # 房源数据提取
-│   │   └── feedback/         # 反馈收集
-│   ├── evaluate/             # 评估页面
-│   │   ├── living/           # 居住评估
-│   │   └── space/            # 空间评估
-│   ├── report/               # 评估报告
-│   ├── result/               # 结果展示
-│   └── dev/                  # 开发工具
-│       ├── metrics/          # Beta 观测面板 ⭐
-│       └── cases/            # 案例管理
-│
-├── lib/
-│   ├── engine/               # 评估引擎核心
-│   │   ├── index.ts          # 主评估函数
-│   │   ├── rules.ts          # 风险规则
-│   │   ├── types.ts          # 类型定义
-│   │   └── __tests__/        # 引擎测试
-│   │
-│   ├── adapters/             # 数据适配层
-│   │   ├── listing-transformer.ts
-│   │   └── evaluation-adapter.ts
-│   │
-│   ├── feedback/             # 反馈系统
-│   │   ├── shadow-logger.ts  # 影子日志
-│   │   └── shadow-log.ts     # 存储接口
-│   │
-│   ├── metrics/              # 指标聚合
-│   │   └── aggregate.ts      # 12 指标计算
-│   │
-│   ├── validation/           # 验证系统
-│   │   ├── fixtures.ts       # 15 套验证案例
-│   │   ├── fixtures-updated.ts
-│   │   └── metrics.ts        # 验证指标
-│   │
-│   ├── llm/                  # LLM 集成
-│   │   ├── client.ts
-│   │   ├── prompts.ts
-│   │   └── schemas.ts
-│   │
-│   └── constants/            # 业务常量
-│       └── evaluation.ts     # 枚举定义
-│
-├── components/               # React 组件
-│   └── ui/                   # shadcn/ui 组件
-│
-├── prisma/                   # 数据库 Schema
-│   └── schema.prisma
-│
-├── docs/                     # 文档
-│   ├── LLM_FALLBACK.md
-│   └── ...
-│
-└── public/                   # 静态资源
-```
-
-### 核心类型系统
+### 直接调用引擎
 
 ```typescript
-// Verdict 枚举 - 唯一真相源
-type Verdict = 'rent' | 'cautious' | 'avoid'
+import { evaluate } from '@/lib/engine';
 
-// 评估结果
-interface EvaluationResult {
-  verdict: Verdict
-  overallScore: number
-  risks: RiskItem[]
-  actions: ActionItem[]
-  decisionNote?: string  // 谨慎/拒绝时说明
-}
+const result = evaluate({
+  layoutType: 'one_bedroom',
+  areaSqm: 45,
+  orientation: 'south',
+  floorLevel: 'middle',
+  totalFloors: 18,
+  hasElevator: true,
+  buildingAge: 'new',
 
-// 输入质量元数据
-interface InputQuality {
-  confidence: 'high' | 'medium' | 'low'
-  warningCount: number
-  missingFields: string[]
-}
+  hasWestFacingWindow: false,
+  facesMainRoad: true,
+  nearElevator: false,
+
+  isShared: false,
+  roommateSituation: undefined,
+
+  primaryGoal: 'exam_prep',
+
+  allowsLightRenovation: true,
+  allowsFurnitureMove: true,
+  allowsSoftImprovements: true,
+});
+
+console.log(result.verdict);
+console.log(result.overallScore);
+console.log(result.risks);
+console.log(result.actions);
+console.log(result.decisionNote);
+```
+
+### 通过 Adapter 清洗真实房源输入
+
+```typescript
+import { transformRawToEngineInput } from '@/lib/adapters/listing-transformer';
+import { evaluate } from '@/lib/engine';
+
+const transformed = transformRawToEngineInput(rawListing, {
+  primaryGoal: 'sleep_quality',
+  onWarning: (message, field) => {
+    console.warn(`[transform] ${field}: ${message}`);
+  },
+});
+
+const result = evaluate(transformed.input);
+
+console.log(transformed.confidence);
+console.log(transformed.warnings);
+console.log(result.verdict);
 ```
 
 ---
 
-## 🔌 API 参考
+## 输入质量模型
 
-### 提取房源数据
+真实房源接入不可能永远干净，所以 SpaceRisk 在 adapter 层提供：
 
-```http
-POST /api/extract-listing
-Content-Type: application/json
+- `warnings`
+- `confidence`
 
-{
-  "url": "https://www.xiaohongshu.com/..."
-}
+### warnings
+
+每次转换时，系统会记录类似问题：
+
+- 某字段缺失，使用默认值
+- 某字段格式异常，做了降级解析
+- 某字段语义模糊，按保守方式处理
+- 某字段被忽略
+
+示例结构：
+
+```typescript
+type TransformWarning = {
+  field: string;
+  code: 'missing' | 'invalid_format' | 'fallback_used' | 'ambiguous';
+  message: string;
+  severity: 'low' | 'medium' | 'high';
+};
 ```
 
-### 提交反馈
+### confidence
 
-```http
-POST /api/feedback/shadow-log
-Content-Type: application/json
+当前 confidence 表达的是：
 
-{
-  "entryId": "uuid",
-  "feedback": {
-    "isAccurate": false,
-    "comment": "风险判断过于保守"
-  }
-}
+> 输入转换可靠度
+
+不是模型自信程度，也不是判定正确率。
+
+通常规则如下：
+
+- **high**：输入完整，warning 很少
+- **medium**：有若干中等 warning
+- **low**：关键字段缺失或严重异常较多
+
+这能帮助你快速判断：
+
+- 是规则错了
+- 还是输入本身就不可靠
+
+---
+
+## 验证与观测
+
+SpaceRisk 当前配有完整的验证与观测链路。
+
+### Validation
+
+当前项目包含：
+
+- 静态验证案例集
+- 风险排序与建议排序回归测试
+- override 稳健性验证
+- 边界反例验证
+
+这些机制的目标不是宣称系统"已经完美"，而是确保它能被持续校准。
+
+### Metrics
+
+当前 `/dev/metrics` 聚合 **12 个核心指标**，分为四类：
+
+#### A. 输入质量
+- Total Evaluations
+- Confidence Distribution
+- Avg Warnings per Input
+
+#### B. 引擎输出
+- Verdict Distribution
+- Rent Rate by Primary Goal
+- Override Trigger Rate
+- Decision Note Rate
+
+#### C. 用户反馈
+- Positive Feedback Rate
+- Negative Feedback Rate
+- Cautious Negative Rate
+
+#### D. 校准质量
+- Top Risk Hit Rate
+- First Action Acceptable Rate
+
+这些指标用于回答：
+
+- 系统是否过于保守
+- 问题出在输入、规则还是排序
+- 用户是否信任当前结果
+- 下一轮应该优先修哪一层
+
+---
+
+## 项目结构
+
+```
+app/
+  dev/
+    cases/          # 验证案例回放
+    metrics/        # Beta 观测面板
+  report/           # 评估报告
+  compare/          # 对比页面
+
+components/
+  ui/               # shadcn/ui 组件
+  report/           # 报告专用组件
+
+lib/
+  adapters/         # 数据适配层
+  engine/           # 评估引擎核心
+  feedback/         # 反馈与日志
+  metrics/          # 指标聚合
+  actions/          # 动作映射
+  constants/        # 业务常量
+  types/            # 类型定义
 ```
 
----
-
-## 📊 12 核心指标说明
-
-| # | 指标 | 数据源 | 说明 |
-|---|------|--------|------|
-| 1 | Total Evaluations | Shadow Log | 总评估次数 |
-| 2 | Confidence Distribution | Shadow Log | 输入置信度分布 |
-| 3 | Avg Warnings/Input | Shadow Log | 平均警告数/输入 |
-| 4 | Verdict Distribution | Shadow Log | rent/cautious/avoid 占比 |
-| 5 | Rent Rate by Goal | Shadow Log | 各场景 rent 比例 |
-| 6 | Override Trigger Rate | Validation | 覆盖规则触发率 |
-| 7 | Decision Note Rate | Shadow Log | 触发决策说明比例 |
-| 8 | Positive Feedback Rate | Shadow Log* | 正面反馈率 |
-| 9 | Negative Feedback Rate | Shadow Log* | 负面反馈率 |
-| 10 | Cautious Negative Rate | Shadow Log* | 谨慎案例负面反馈率 |
-| 11 | Top Risk Hit Rate | Validation | 首要风险命中率 |
-| 12 | First Action Acceptable | Validation | 首条建议可接受率 |
-
-> *样本不足 (n<5) 时显示 N/A
+目录可能继续演化，但当前核心边界已基本稳定：
+`adapter / engine / feedback-metrics / UI-dev tools`
 
 ---
 
-## 🧪 测试
+## 当前边界
 
-```bash
-# 运行所有测试
-npm test
+当前版本的边界比较明确：
 
-# 覆盖率报告
-npm run test:coverage
-```
+### 1. 依赖结构化输入
+系统当前不直接理解完整房源网页。
+真实房源接入仍依赖 adapter 清洗质量。
 
-### 测试分类
+### 2. 排序质量当前弱于 verdict 稳定性
+当前 verdict 更稳，Top Risk 和 First Action 仍在持续校准。
 
-| 测试文件 | 说明 |
-|----------|------|
-| `pure-function.test.ts` | 引擎纯函数行为验证 |
-| `validation-cases.test.ts` | 15 套验证案例回归 |
-| `disputed-cases.test.ts` | 争议案例专项覆盖 |
-| `sorting-calibration.test.ts` | 排序算法校准 |
-| `transformer-warnings.test.ts` | 数据转换警告 |
+### 3. 部分规则覆盖仍可扩展
+例如：
 
----
+- 北向采光不足
+- 更细粒度的窗外遮挡信息
+- 更真实的楼层噪音衰减
+- 更丰富的共享居住约束
 
-## 🚀 部署
-
-### Vercel (推荐)
-
-```bash
-# 安装 Vercel CLI
-npm i -g vercel
-
-# 登录
-vercel login
-
-# 部署
-vercel --prod
-```
-
-### 环境变量
-
-| 变量 | 说明 | 必需 |
-|------|------|------|
-| `OPENAI_API_KEY` | LLM API Key | 是 |
-| `NEXT_PUBLIC_APP_URL` | 应用域名 | 否 |
+### 4. Beta 指标样本仍有限
+在样本量较小时，部分反馈指标会显示 N/A 或样本不足提示。
 
 ---
 
-## 📄 相关文档
+## Beta 使用建议
 
-- [RULES_ENGINE.md](./RULES_ENGINE.md) - 规则引擎详解
-- [USAGE_GUIDE.md](./USAGE_GUIDE.md) - 使用指南
-- [FINAL_REPORT.md](./FINAL_REPORT.md) - 项目总结报告
-- [docs/LLM_FALLBACK.md](./docs/LLM_FALLBACK.md) - LLM 降级策略
+如果你准备在内部或小范围试用，建议使用以下口径：
 
----
+> SpaceRisk 当前为保守策略版租房决策辅助引擎：优先避免放过高风险房源，在当前验证案例中 verdict 表现稳定，但风险排序与第一建议动作仍在持续校准中。
 
-## 🤝 贡献
+### 建议使用方式
 
-欢迎提交 Issue 和 PR！
-
-1. Fork 本项目
-2. 创建功能分支 (`git checkout -b feature/xxx`)
-3. 提交更改 (`git commit -m 'feat: xxx'`)
-4. 推送分支 (`git push origin feature/xxx`)
-5. 创建 Pull Request
+- 优先用于内部决策辅助，而不是唯一判断依据
+- 优先观察 cautious 房源上的用户反馈
+- 保持 `/dev/metrics` 与 `/dev/cases` 持续更新
+- 在真实样本积累前，尽量冻结 verdict 骨架
 
 ---
 
-## 📜 License
+## 路线图
+
+当前最值得继续推进的方向：
+
+- [ ] 提升 Top Risk 命中率
+- [ ] 提升 First Action 可接受率
+- [ ] 扩展规则覆盖与真实案例集
+- [ ] 完善 decisionNote 的正式展示体验
+- [ ] 增强 adapter 对真实房源脏数据的鲁棒性
+- [ ] 基于真实用户反馈继续校准 recommendation ranking
+
+---
+
+## License
 
 [MIT](./LICENSE)
-
----
-
-<p align="center">
-  Made with ❤️ for better renting decisions
-</p>
