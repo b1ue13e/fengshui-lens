@@ -14,6 +14,18 @@ import { prisma } from '@/lib/prisma';
 const REDIS_KEY = 'shadow:logs:beta';
 const SEARCH_LIMIT = 500; // 只在最近500条里找，性能优化
 
+// 延迟初始化 Redis（避免构建时失败）
+let redis: ReturnType<typeof Redis.fromEnv> | null = null;
+function getRedis() {
+  if (!redis) {
+    redis = Redis.fromEnv();
+  }
+  return redis;
+}
+
+// 强制动态渲染，防止构建时静态生成
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
     const { logId, userFeedback, expectedVerdict } = await req.json();
@@ -25,11 +37,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const redis = Redis.fromEnv();
-
     // 1. 遍历抽样池，精准捞取那条被标记的日志
     // 进阶技巧：为了性能，只在最近的 500 条里找
-    const rawLogs = await redis.lrange(REDIS_KEY, 0, SEARCH_LIMIT - 1);
+    const rawLogs = await getRedis().lrange(REDIS_KEY, 0, SEARCH_LIMIT - 1);
     let targetLog: any = null;
     
     for (const logStr of rawLogs) {

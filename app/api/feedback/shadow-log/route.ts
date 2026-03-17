@@ -14,13 +14,23 @@ import { Redis } from '@upstash/redis';
 import { waitUntil } from '@vercel/functions';
 import { prisma } from '@/lib/prisma';
 
-const redis = Redis.fromEnv();
+// 延迟初始化 Redis（避免构建时失败）
+let redis: ReturnType<typeof Redis.fromEnv> | null = null;
+function getRedis() {
+  if (!redis) {
+    redis = Redis.fromEnv();
+  }
+  return redis;
+}
 
 const CONFIG = {
   REDIS_KEY: 'shadow:logs:beta',
   MAX_LOGS: 4999,
   EXPIRE_SECONDS: 60 * 60 * 24 * 7, // 7天
 };
+
+// 强制动态渲染
+export const dynamic = 'force-dynamic';
 
 /**
  * POST - 接收日志
@@ -46,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (process.env.NODE_ENV === 'production') {
       // 写入 Redis（非阻塞）
       const writeLogTask = async () => {
-        const pipeline = redis.pipeline();
+        const pipeline = getRedis().pipeline();
         
         enrichedLogs.forEach((log) => {
           pipeline.lpush(CONFIG.REDIS_KEY, JSON.stringify(log));
@@ -144,7 +154,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const rawLogs = await redis.lrange(CONFIG.REDIS_KEY, 0, limit - 1);
+    const rawLogs = await getRedis().lrange(CONFIG.REDIS_KEY, 0, limit - 1);
     
     const parsedLogs = rawLogs.map((logStr: string) => {
       try {
