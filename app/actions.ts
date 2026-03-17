@@ -12,6 +12,9 @@ import { toEvaluationReport } from '@/lib/adapters/evaluation-adapter';
 // 检查是否有 LLM API Key
 const hasLLMConfig = !!process.env.DEEPSEEK_API_KEY || !!process.env.OPENAI_API_KEY;
 
+console.log('[Server] hasLLMConfig:', hasLLMConfig);
+console.log('[Server] DEEPSEEK_API_KEY exists:', !!process.env.DEEPSEEK_API_KEY);
+
 // 降级：不使用 LLM，直接生成简单的报告文案
 function generateFallbackSummary(engineResult: EngineResult) {
   const verdictLabels: Record<string, string> = {
@@ -43,44 +46,62 @@ function generateFallbackChatScripts(engineResult: EngineResult) {
 }
 
 export async function submitEvaluation(data: EvaluationInput) {
+  console.log('[submitEvaluation] Started with data:', JSON.stringify(data, null, 2));
+  
   try {
     // 1. 运行规则引擎
+    console.log('[submitEvaluation] Running evaluate...');
     const engineResult = evaluate(data);
+    console.log('[submitEvaluation] Engine result:', engineResult.verdict, engineResult.overallScore);
     
     // 2. 生成文案（并行）- 如果没有 LLM 配置则使用降级方案
     let summaryResult: any;
     let chatResult: any;
     
     if (hasLLMConfig) {
-      // 使用 LLM 生成高质量文案
-      [summaryResult, chatResult] = await Promise.all([
-        generateWithDeepSeek(
-          generateReportSummaryPrompt(engineResult),
-          { name: 'report_summary', description: '生成评估报告总结' },
-          (text) => {
-            const parts = text.split('\n\n');
-            return {
-              overallComment: parts[0] || '',
-              strength: parts[1] || '',
-              concern: parts[2] || '',
-              recommendation: parts[3] || '',
-            };
-          }
-        ),
-        generateWithDeepSeek(
-          generateChatScriptPrompt(engineResult),
-          { name: 'chat_scripts', description: '生成沟通话术' },
-          (text) => JSON.parse(text)
-        ),
-      ]);
+      console.log('[submitEvaluation] Using LLM...');
+      try {
+        // 添加超时处理
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('LLM 请求超时')), 30000)
+        );
+        
+        const llmPromise = Promise.all([
+          generateWithDeepSeek(
+            generateReportSummaryPrompt(engineResult),
+            { name: 'report_summary', description: '生成评估报告总结' },
+            (text) => {
+              const parts = text.split('\n\n');
+              return {
+                overallComment: parts[0] || '',
+                strength: parts[1] || '',
+                concern: parts[2] || '',
+                recommendation: parts[3] || '',
+              };
+            }
+          ),
+          generateWithDeepSeek(
+            generateChatScriptPrompt(engineResult),
+            { name: 'chat_scripts', description: '生成沟通话术' },
+            (text) => JSON.parse(text)
+          ),
+        ]);
+        
+        [summaryResult, chatResult] = await Promise.race([llmPromise, timeoutPromise]) as any;
+        console.log('[submitEvaluation] LLM results received');
+      } catch (llmError) {
+        console.error('[submitEvaluation] LLM failed, using fallback:', llmError);
+        summaryResult = { data: generateFallbackSummary(engineResult) };
+        chatResult = { data: generateFallbackChatScripts(engineResult) };
+      }
     } else {
-      // 降级：使用本地生成的简单文案
-      console.log('[submitEvaluation] 未配置 LLM API Key，使用降级方案');
+      console.log('[submitEvaluation] Using fallback (no LLM config)');
       summaryResult = { data: generateFallbackSummary(engineResult) };
       chatResult = { data: generateFallbackChatScripts(engineResult) };
     }
 
     // 3. 保存到数据库
+    console.log('[submitEvaluation] Saving to database...');
     const evaluation = await prisma.evaluation.create({
       data: {
         ...data,
@@ -106,12 +127,15 @@ export async function submitEvaluation(data: EvaluationInput) {
       },
     });
 
+    console.log('[submitEvaluation] Saved! ID:', evaluation.id);
+    
     revalidatePath(`/report/${evaluation.id}`);
+    console.log('[submitEvaluation] Redirecting to:', `/report/${evaluation.id}`);
     redirect(`/report/${evaluation.id}`);
     
-  } catch (error) {
-    console.error('Submit evaluation error:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[submitEvaluation] Fatal error:', error);
+    throw new Error(`评估提交失败: ${error.message || '未知错误'}`);
   }
 }
 

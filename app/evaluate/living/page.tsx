@@ -139,9 +139,12 @@ export default function LivingNeedsPage() {
       console.log("[Submit] fullData:", fullData);
 
       await submitEvaluation(fullData);
+      // 如果成功，submitEvaluation 内部会 redirect，不会执行到这里
+      console.log("[Submit] Success (should redirect)");
     } catch (err: any) {
       console.error("[Submit] Error:", err);
-      setError(`❌ 提交失败: ${err.message || "未知错误"}`);
+      console.error("[Submit] Error stack:", err.stack);
+      setError(`❌ 提交失败: ${err.message || "未知错误，请检查控制台"}`);
       setIsSubmitting(false);
     }
   };
