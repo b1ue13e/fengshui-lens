@@ -1,142 +1,50 @@
-"use client";
+import Link from 'next/link';
+import { Compass, Sparkles, BarChart3 } from 'lucide-react';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Camera, Menu, X } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-
-const navItems = [
-  { label: "首页", href: "/" },
-  { label: "空间诊断", href: "/analyze" },
-  { label: "示例报告", href: "/report" },
-];
-
-export function Navigation() {
-  const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-
+export default function Navigation() {
   return (
-    <header className="sticky top-0 z-50 w-full">
-      {/* Glassmorphism background */}
-      <div className="absolute inset-0 bg-white/80 backdrop-blur-xl border-b border-stone-200/60" />
-      
-      <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between px-6 sm:px-8 lg:px-12">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-stone-900 text-white shadow-subtle transition-all duration-300 group-hover:shadow-soft group-hover:scale-105">
-            <Camera className="h-4 w-4" strokeWidth={1.5} />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight text-stone-900 leading-none">
-              FengShui Lens
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/40">
+      <div className="container flex h-16 max-w-screen-2xl items-center justify-between px-4 md:px-8">
+        
+        {/* 左侧 Logo 区 */}
+        <div className="flex items-center gap-2">
+          <Compass className="h-6 w-6 text-primary" />
+          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+            <span className="font-bold tracking-tighter text-lg md:text-xl">
+              FengShui <span className="text-primary">Lens</span>
             </span>
-            <span className="text-[10px] font-medium text-stone-500 tracking-wide mt-0.5">
-              空间气场诊断器
-            </span>
-          </div>
-        </Link>
-
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`relative px-4 py-2 text-sm font-medium transition-all duration-200 rounded-lg ${
-                  isActive
-                    ? "text-stone-900"
-                    : "text-stone-500 hover:text-stone-900"
-                }`}
-              >
-                {isActive && (
-                  <span className="absolute inset-0 bg-stone-100 rounded-lg" />
-                )}
-                <span className="relative">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* CTA Button */}
-        <div className="hidden md:flex items-center gap-3">
-          <Link href="/analyze">
-            <Button className="bg-stone-900 hover:bg-stone-800 text-white rounded-full px-5 h-9 text-sm font-medium shadow-subtle hover:shadow-soft transition-all duration-200 btn-press">
-              开始诊断
-            </Button>
           </Link>
         </div>
 
-        {/* Mobile Menu */}
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
-          <SheetTrigger className="md:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-lg"
-            >
-              <Menu className="h-5 w-5 text-stone-600" />
-              <span className="sr-only">打开菜单</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent
-            side="right"
-            className="w-80 bg-white border-l border-stone-200/60 p-0"
+        {/* 右侧导航区 */}
+        <nav className="flex items-center gap-6 text-sm font-medium">
+          <Link 
+            href="/evaluate" 
+            className="flex items-center gap-1.5 text-foreground/80 transition-colors hover:text-primary"
           >
-            <div className="flex flex-col h-full">
-              {/* Mobile Header */}
-              <div className="flex items-center justify-between p-6 border-b border-stone-100">
-                <Link
-                  href="/"
-                  className="flex items-center gap-2"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-900 text-white">
-                    <Camera className="h-4 w-4" strokeWidth={1.5} />
-                  </div>
-                  <span className="text-sm font-semibold text-stone-900">
-                    FengShui Lens
-                  </span>
-                </Link>
-              </div>
-              
-              {/* Mobile Nav Items */}
-              <nav className="flex-1 p-6">
-                <div className="space-y-1">
-                  {navItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setIsOpen(false)}
-                        className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors ${
-                          isActive
-                            ? "text-stone-900 bg-stone-100"
-                            : "text-stone-500 hover:text-stone-900 hover:bg-stone-50"
-                        }`}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </nav>
-              
-              {/* Mobile CTA */}
-              <div className="p-6 border-t border-stone-100">
-                <Link href="/analyze" onClick={() => setIsOpen(false)}>
-                  <Button className="w-full bg-stone-900 hover:bg-stone-800 text-white rounded-xl h-11 font-medium">
-                    开始诊断
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">开始算卦</span>
+          </Link>
+          
+          <Link 
+            href="/dev/metrics" 
+            className="hidden md:flex items-center gap-1.5 text-foreground/80 transition-colors hover:text-primary"
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span>引擎面板</span>
+          </Link>
+          
+          {/* 视觉重心按钮：霓虹边框发光 */}
+          <Link 
+            href="/report" 
+            className="group relative inline-flex h-9 items-center justify-center overflow-hidden rounded-md border border-primary/50 bg-primary/10 px-4 py-2 font-medium text-primary transition-all hover:bg-primary hover:text-primary-foreground"
+          >
+            <span className="relative z-10">历史卷宗</span>
+            {/* 悬停时的光晕动画 */}
+            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-primary/0 via-primary/50 to-primary/0 opacity-0 transition-opacity group-hover:opacity-100" />
+          </Link>
+        </nav>
+
       </div>
     </header>
   );
