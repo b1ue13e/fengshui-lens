@@ -108,7 +108,8 @@ export interface RiskItem {
   dimension: Dimension;
   title: string;
   description: string;
-  modernReason: string;
+  modernReason?: string;
+  mitigable?: boolean;
 }
 
 // ========== 动作类型 ==========
