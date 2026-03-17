@@ -2,14 +2,52 @@
 import { Redis } from '@upstash/redis';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { EscalateButton } from './escalate-button';
+import { getDisputedStats } from './actions';
 
-// 强制动态渲染，确保每次刷新都能拿到最新日志
+// 强制动态渲染
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Redis 配置
 const REDIS_KEY = 'shadow:logs:beta';
-const MAX_LOGS = 1000; // 最多读取 1000 条用于统计
+const MAX_LOGS = 1000;
+
+/**
+ * 健壮的数据解析 - 防御性装甲
+ * 遇到脏数据不崩溃，而是降级展示
+ */
+function safeParseLog(logStr: string): any {
+  try {
+    const data = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
+    
+    // 深度校验：确保至少存在核心锚点
+    if (!data || typeof data !== 'object') {
+      throw new Error('Not an object');
+    }
+    
+    // 检查必要字段
+    if (!data.id) {
+      throw new Error('Missing id');
+    }
+    
+    return {
+      ...data,
+      _isValid: true,
+      _parseError: null,
+    };
+  } catch (e) {
+    // 降级展示：让你能在面板上揪出 Bug
+    return {
+      id: `corrupted-${Date.now()}`,
+      _isValid: false,
+      _parseError: e instanceof Error ? e.message : 'Unknown parse error',
+      _raw: logStr,
+      result: { verdict: 'unknown' },
+      input: {},
+      meta: {},
+    };
+  }
+}
 
 /**
  * 从 Redis 获取 Shadow Logs
@@ -19,15 +57,9 @@ async function getShadowLogs(limit = MAX_LOGS) {
     const redis = Redis.fromEnv();
     const rawLogs = await redis.lrange(REDIS_KEY, 0, limit - 1);
     
-    // 解析并清洗数据
-    const parsedLogs = rawLogs.map((logStr: string) => {
-      try {
-        return typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
-      } catch (e) {
-        return null;
-      }
-    }).filter(Boolean);
-
+    // 健壮解析：每个日志独立处理，脏数据不传染
+    const parsedLogs = rawLogs.map(safeParseLog);
+    
     return parsedLogs;
   } catch (e) {
     console.error('[Metrics] Failed to fetch logs:', e);
@@ -42,8 +74,10 @@ function calculateMetrics(logs: any[]) {
   if (logs.length === 0) {
     return {
       total: 0,
-      verdictDistribution: { rent: 0, cautious: 0, avoid: 0 },
-      confidenceDistribution: { high: 0, medium: 0, low: 0 },
+      valid: 0,
+      corrupted: 0,
+      verdictDistribution: { rent: 0, cautious: 0, avoid: 0, unknown: 0 },
+      confidenceDistribution: { high: 0, medium: 0, low: 0, unknown: 0 },
       avgWarnings: 0,
       feedbackCount: 0,
       positiveFeedback: 0,
@@ -51,37 +85,46 @@ function calculateMetrics(logs: any[]) {
     };
   }
 
-  // Verdict 分布
-  const verdictDist = { rent: 0, cautious: 0, avoid: 0 };
-  logs.forEach((log) => {
+  const validLogs = logs.filter(l => l._isValid);
+  const corruptedCount = logs.filter(l => !l._isValid).length;
+
+  // Verdict 分布（包含 unknown）
+  const verdictDist = { rent: 0, cautious: 0, avoid: 0, unknown: 0 };
+  validLogs.forEach((log) => {
     const v = log.result?.verdict;
     if (v && verdictDist.hasOwnProperty(v)) {
       verdictDist[v as keyof typeof verdictDist]++;
+    } else {
+      verdictDist.unknown++;
     }
   });
 
   // 置信度分布
-  const confidenceDist = { high: 0, medium: 0, low: 0 };
-  logs.forEach((log) => {
+  const confidenceDist = { high: 0, medium: 0, low: 0, unknown: 0 };
+  validLogs.forEach((log) => {
     const c = log.inputQuality?.confidence;
     if (c && confidenceDist.hasOwnProperty(c)) {
       confidenceDist[c as keyof typeof confidenceDist]++;
+    } else {
+      confidenceDist.unknown++;
     }
   });
 
   // 平均警告数
-  const logsWithWarnings = logs.filter((l) => l.inputQuality?.warningCount !== undefined);
+  const logsWithWarnings = validLogs.filter((l) => l.inputQuality?.warningCount !== undefined);
   const avgWarnings = logsWithWarnings.length > 0
     ? logsWithWarnings.reduce((sum, l) => sum + (l.inputQuality.warningCount || 0), 0) / logsWithWarnings.length
     : 0;
 
   // 反馈统计
-  const feedbackLogs = logs.filter((l) => l.feedback !== undefined);
+  const feedbackLogs = validLogs.filter((l) => l.feedback !== undefined);
   const positiveCount = feedbackLogs.filter((l) => l.feedback?.isAccurate).length;
   const negativeCount = feedbackLogs.filter((l) => !l.feedback?.isAccurate).length;
 
   return {
     total: logs.length,
+    valid: validLogs.length,
+    corrupted: corruptedCount,
     verdictDistribution: verdictDist,
     confidenceDistribution: confidenceDist,
     avgWarnings: Math.round(avgWarnings * 10) / 10,
@@ -95,9 +138,10 @@ function calculateMetrics(logs: any[]) {
  * 按主目标统计 Rent Rate
  */
 function calculateRentByGoal(logs: any[]) {
+  const validLogs = logs.filter(l => l._isValid);
   const byGoal: Record<string, { total: number; rent: number }> = {};
   
-  logs.forEach((log) => {
+  validLogs.forEach((log) => {
     const goal = log.input?.primaryGoal;
     if (!goal) return;
     
@@ -122,12 +166,14 @@ export default async function MetricsPage() {
   const logs = await getShadowLogs();
   const metrics = calculateMetrics(logs);
   const rentByGoal = calculateRentByGoal(logs);
+  const disputedStats = await getDisputedStats();
 
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'good': return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'warning': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       case 'insufficient': return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+      case 'error': return 'bg-red-500/20 text-red-400 border-red-500/30';
       default: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
     }
   };
@@ -160,12 +206,24 @@ export default async function MetricsPage() {
                   {metrics.total}
                 </Badge>
               </div>
+              {metrics.corrupted > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-red-400">Corrupted Logs</span>
+                  <Badge className={getStatusColor('error')}>
+                    {metrics.corrupted}
+                  </Badge>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Valid Logs</span>
+                <span className="font-mono text-green-400">{metrics.valid}</span>
+              </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">High Confidence</span>
                 <span className="font-mono">
                   {metrics.confidenceDistribution.high}
                   <span className="text-slate-500 ml-1">
-                    ({metrics.total > 0 ? Math.round((metrics.confidenceDistribution.high / metrics.total) * 100) : 0}%)
+                    ({metrics.valid > 0 ? Math.round((metrics.confidenceDistribution.high / metrics.valid) * 100) : 0}%)
                   </span>
                 </span>
               </div>
@@ -193,7 +251,7 @@ export default async function MetricsPage() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Rent Rate</span>
                 <span className="font-mono">
-                  {metrics.total > 0 ? Math.round((metrics.verdictDistribution.rent / metrics.total) * 100) : 0}%
+                  {metrics.valid > 0 ? Math.round((metrics.verdictDistribution.rent / metrics.valid) * 100) : 0}%
                 </span>
               </div>
               <div className="pt-2 border-t border-slate-800">
@@ -208,6 +266,11 @@ export default async function MetricsPage() {
                   <Badge className="bg-red-500/20 text-red-400">
                     avoid: {metrics.verdictDistribution.avoid}
                   </Badge>
+                  {metrics.verdictDistribution.unknown > 0 && (
+                    <Badge className="bg-slate-500/20 text-slate-400">
+                      unknown: {metrics.verdictDistribution.unknown}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -253,29 +316,30 @@ export default async function MetricsPage() {
             </CardContent>
           </Card>
 
-          {/* Storage Info */}
+          {/* Disputed Cases */}
           <Card className="bg-slate-900 border-slate-800">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Badge variant="outline" className="bg-purple-500/20 text-purple-400">Storage</Badge>
-                Infrastructure
+                <Badge variant="outline" className="bg-purple-500/20 text-purple-400">Amber</Badge>
+                Disputed Cases
               </CardTitle>
+              <p className="text-xs text-slate-500">PostgreSQL 琥珀封存</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Backend</span>
-                <Badge className="bg-purple-500/20 text-purple-400">Upstash Redis</Badge>
+                <span className="text-slate-400">Total Disputed</span>
+                <Badge className={getStatusColor(disputedStats.total > 0 ? 'warning' : 'good')}>
+                  {disputedStats.total}
+                </Badge>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Retention</span>
-                <span className="font-mono text-slate-300">7 days (TTL)</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Max Logs</span>
-                <span className="font-mono text-slate-300">5,000</span>
-              </div>
+              {Object.entries(disputedStats.byStatus).map(([status, count]) => (
+                <div key={status} className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm capitalize">{status.toLowerCase()}</span>
+                  <span className="font-mono text-sm">{count}</span>
+                </div>
+              ))}
               <p className="text-xs text-slate-500 pt-2 border-t border-slate-800">
-                Disputed cases auto-persist to PostgreSQL
+                争议案例自动从 Redis 转移至 PostgreSQL 永久保存
               </p>
             </CardContent>
           </Card>
@@ -301,26 +365,63 @@ export default async function MetricsPage() {
           </Card>
         )}
 
-        {/* 最近日志预览 */}
-        {logs.length > 0 && (
-          <Card className="bg-slate-900 border-slate-800 mt-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Recent Logs (Latest 5)</CardTitle>
-              <p className="text-xs text-slate-500">Raw data from Redis</p>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-slate-950 text-green-400 p-4 rounded-lg overflow-auto text-xs">
-                {JSON.stringify(logs.slice(0, 5).map((log) => ({
-                  id: log.id,
-                  verdict: log.result?.verdict,
-                  score: log.result?.overallScore,
-                  goal: log.input?.primaryGoal,
-                  confidence: log.inputQuality?.confidence,
-                })), null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-        )}
+        {/* 最近日志预览 - 带干预按钮 */}
+        <Card className="bg-slate-900 border-slate-800 mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Recent Logs (Latest 10)</CardTitle>
+            <p className="text-xs text-slate-500">Raw data from Redis · 可标记误判</p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {logs.slice(0, 10).map((log) => (
+                <div 
+                  key={log.id} 
+                  className={`flex justify-between items-center p-3 rounded border ${
+                    log._isValid 
+                      ? 'bg-slate-800/50 border-slate-700' 
+                      : 'bg-red-900/20 border-red-700/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    {/* Verdict Badge */}
+                    <Badge className={
+                      log.result?.verdict === 'rent' ? 'bg-green-500/20 text-green-400' :
+                      log.result?.verdict === 'cautious' ? 'bg-yellow-500/20 text-yellow-400' :
+                      log.result?.verdict === 'avoid' ? 'bg-red-500/20 text-red-400' :
+                      'bg-slate-500/20 text-slate-400'
+                    }>
+                      {log.result?.verdict || 'unknown'}
+                    </Badge>
+                    
+                    {/* ID & Info */}
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-mono text-xs truncate">
+                        {log.id}
+                      </span>
+                      {log._isValid ? (
+                        <span className="text-xs text-slate-500">
+                          {log.input?.primaryGoal || 'no-goal'} · {log.result?.overallScore || 'N/A'}分
+                        </span>
+                      ) : (
+                        <span className="text-xs text-red-400">
+                          Parse Error: {log._parseError}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 干预按钮 - 仅对有效日志显示 */}
+                  {log._isValid && (
+                    <EscalateButton 
+                      logId={log.id} 
+                      currentVerdict={log.result?.verdict}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
