@@ -53,3 +53,18 @@ yarn-error.log*
 
 # OS
 *.log
+
+# Prisma
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/migrations/
+
+node_modules/
+.env
+.env.local
+# 忽略你的 Shadow Log 本地测试生成的巨量日志
+logs/
+shadow-logs/
+*.log

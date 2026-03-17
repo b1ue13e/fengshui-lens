@@ -1,0 +1,31 @@
+name: Engine Core Verification
+
+# 触发时机：每次推送到 main 分支，或者发起 Pull Request 时
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码 (Checkout)
+      uses: actions/checkout@v4
+
+    - name: 部署 Node.js 环境
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # 确保与你本地开发版本一致
+        cache: 'npm'       # 极其重要：缓存依赖，加速后续运行
+
+    - name: 安装依赖包
+      run: npm ci          # 强制使用 package-lock.json 进行精准安装
+
+    - name: 运行 Prisma Client 生成
+      run: npx prisma generate
+
+    - name: 处刑台：执行 Vitest 纯函数核心测试
+      run: npm run test:run # 确保你 package.json 的 scripts 里有 "test:run": "vitest run"
