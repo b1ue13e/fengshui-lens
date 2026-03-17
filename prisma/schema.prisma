@@ -7,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 核心评估记录（生产数据）
 model Evaluation {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -62,4 +63,35 @@ model Evaluation {
   verdict            String?
 
   @@map("evaluations")
+}
+
+// 争议案例（黄金样本）- 从 Redis 捞出来永久保存
+model DisputedCase {
+  id             String   @id @default(cuid())
+  sessionId      String   // 用于从 Redis 关联原始日志
+  
+  // 核心现场快照
+  originalUrl    String?  // 房源链接（如小红书）
+  engineVersion  String   @default("v1.2.0") // 记录误判的引擎版本
+  
+  // 数据载体
+  rawInput       String   // 完整输入数据（JSON 序列化）
+  verdictIssued  String   // 错误判决 (rent/cautious/avoid)
+  userFeedback   String?  // 用户吐槽
+  correctedVerdict String? // 用户认为的正确判决
+  
+  // 状态流转
+  status         String   @default("PENDING") // PENDING, RESOLVED, IGNORED, SYNCED
+  
+  // 同步标记
+  syncedToTest   Boolean  @default(false) // 是否已同步到测试集
+  testFixtureId  String?  // 对应的测试用例 ID
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([sessionId])
+  @@index([engineVersion, status])
+  @@index([syncedToTest])
+  @@map("disputed_cases")
 }
