@@ -25,6 +25,7 @@ function getRedis() {
 
 // 强制动态渲染，防止构建时静态生成
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {

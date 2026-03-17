@@ -31,6 +31,7 @@ const CONFIG = {
 
 // 强制动态渲染
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
  * POST - 接收日志
