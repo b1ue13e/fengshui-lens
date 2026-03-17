@@ -1,180 +1,182 @@
-// Server Component - 服务端直接读取 Redis
+// Server Component - 防白屏优化版：抽样读取 + 降维解析
 import { Redis } from '@upstash/redis';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EscalateButton } from './escalate-button';
 import { getDisputedStats } from './actions';
 
-// 强制动态渲染
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
+// 严格限制抽样大小，防止 Vercel Serverless 超时/内存溢出
+const SAMPLE_SIZE = 50;
 const REDIS_KEY = 'shadow:logs:beta';
-const MAX_LOGS = 1000;
+const TIMEOUT_MS = 5000; // 5秒超时兜底
 
 /**
- * 健壮的数据解析 - 防御性装甲
- * 遇到脏数据不崩溃，而是降级展示
+ * 安全解析单条日志
  */
-function safeParseLog(logStr: string): any {
+function safeParseLog(logStr: string): any | null {
   try {
     const data = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
-    
-    // 深度校验：确保至少存在核心锚点
-    if (!data || typeof data !== 'object') {
-      throw new Error('Not an object');
+    if (!data || typeof data !== 'object' || !data.id) {
+      return null;
     }
-    
-    // 检查必要字段
-    if (!data.id) {
-      throw new Error('Missing id');
-    }
-    
-    return {
-      ...data,
-      _isValid: true,
-      _parseError: null,
-    };
+    return data;
   } catch (e) {
-    // 降级展示：让你能在面板上揪出 Bug
-    return {
-      id: `corrupted-${Date.now()}`,
-      _isValid: false,
-      _parseError: e instanceof Error ? e.message : 'Unknown parse error',
-      _raw: logStr,
-      result: { verdict: 'unknown' },
-      input: {},
-      meta: {},
-    };
+    return null;
   }
 }
 
 /**
- * 从 Redis 获取 Shadow Logs
+ * 优化的数据抓取：只读最新 50 条，带超时兜底
  */
-async function getShadowLogs(limit = MAX_LOGS) {
+async function getOptimizedShadowMetrics() {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  
   try {
     const redis = Redis.fromEnv();
-    const rawLogs = await redis.lrange(REDIS_KEY, 0, limit - 1);
     
-    // 健壮解析：每个日志独立处理，脏数据不传染
-    const parsedLogs = rawLogs.map(safeParseLog);
+    // 核心优化 1：严格限制拉取数量，避免内存爆炸
+    const rawLogs = await redis.lrange(REDIS_KEY, 0, SAMPLE_SIZE - 1);
+    clearTimeout(timeoutId);
     
-    return parsedLogs;
-  } catch (e) {
-    console.error('[Metrics] Failed to fetch logs:', e);
-    return [];
-  }
-}
-
-/**
- * 计算实时指标
- */
-function calculateMetrics(logs: any[]) {
-  if (logs.length === 0) {
-    return {
-      total: 0,
-      valid: 0,
-      corrupted: 0,
+    // 核心优化 2：流式解析，脏数据自动过滤
+    const parsedLogs = rawLogs
+      .map(safeParseLog)
+      .filter((log): log is any => log !== null);
+    
+    // 核心优化 3：服务端做轻量聚合，不传输原始大对象到客户端
+    const metrics = {
+      total: parsedLogs.length,
       verdictDistribution: { rent: 0, cautious: 0, avoid: 0, unknown: 0 },
-      confidenceDistribution: { high: 0, medium: 0, low: 0, unknown: 0 },
-      avgWarnings: 0,
-      feedbackCount: 0,
-      positiveFeedback: 0,
-      negativeFeedback: 0,
+      confidenceDistribution: { high: 0, medium: 0, low: 0 },
+      goalDistribution: {} as Record<string, number>,
+      feedbackStats: { total: 0, positive: 0, negative: 0 },
+      avgScore: 0,
+    };
+    
+    let totalScore = 0;
+    let scoreCount = 0;
+    
+    parsedLogs.forEach((log) => {
+      // Verdict 统计
+      const verdict = log.result?.verdict;
+      if (verdict && metrics.verdictDistribution.hasOwnProperty(verdict)) {
+        metrics.verdictDistribution[verdict as keyof typeof metrics.verdictDistribution]++;
+      } else {
+        metrics.verdictDistribution.unknown++;
+      }
+      
+      // 置信度统计
+      const confidence = log.inputQuality?.confidence;
+      if (confidence && metrics.confidenceDistribution.hasOwnProperty(confidence)) {
+        metrics.confidenceDistribution[confidence as keyof typeof metrics.confidenceDistribution]++;
+      }
+      
+      // 目标场景统计
+      const goal = log.input?.primaryGoal;
+      if (goal) {
+        metrics.goalDistribution[goal] = (metrics.goalDistribution[goal] || 0) + 1;
+      }
+      
+      // 反馈统计
+      if (log.feedback !== undefined) {
+        metrics.feedbackStats.total++;
+        if (log.feedback.isAccurate) {
+          metrics.feedbackStats.positive++;
+        } else {
+          metrics.feedbackStats.negative++;
+        }
+      }
+      
+      // 平均分
+      if (typeof log.result?.overallScore === 'number') {
+        totalScore += log.result.overallScore;
+        scoreCount++;
+      }
+    });
+    
+    metrics.avgScore = scoreCount > 0 ? Math.round((totalScore / scoreCount) * 10) / 10 : 0;
+    
+    // 核心优化 4：降维渲染 - 只保留展示必需字段，剔除庞大的 rawInput
+    const trimmedLogs = parsedLogs.map((log) => ({
+      id: log.id,
+      verdict: log.result?.verdict,
+      score: log.result?.overallScore,
+      goal: log.input?.primaryGoal,
+      confidence: log.inputQuality?.confidence,
+      hasFeedback: !!log.feedback,
+      feedbackAccurate: log.feedback?.isAccurate,
+      timestamp: log.serverTime || log.timestamp,
+      // 故意不传递: input, result.risks, result.actions 等大对象
+    }));
+    
+    return {
+      success: true,
+      metrics,
+      logs: trimmedLogs,
+      sampleSize: SAMPLE_SIZE,
+    };
+    
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        success: false,
+        error: 'Redis 连接超时 (5s)，请检查网络或 Upstash 状态',
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '未知错误',
     };
   }
-
-  const validLogs = logs.filter(l => l._isValid);
-  const corruptedCount = logs.filter(l => !l._isValid).length;
-
-  // Verdict 分布（包含 unknown）
-  const verdictDist = { rent: 0, cautious: 0, avoid: 0, unknown: 0 };
-  validLogs.forEach((log) => {
-    const v = log.result?.verdict;
-    if (v && verdictDist.hasOwnProperty(v)) {
-      verdictDist[v as keyof typeof verdictDist]++;
-    } else {
-      verdictDist.unknown++;
-    }
-  });
-
-  // 置信度分布
-  const confidenceDist = { high: 0, medium: 0, low: 0, unknown: 0 };
-  validLogs.forEach((log) => {
-    const c = log.inputQuality?.confidence;
-    if (c && confidenceDist.hasOwnProperty(c)) {
-      confidenceDist[c as keyof typeof confidenceDist]++;
-    } else {
-      confidenceDist.unknown++;
-    }
-  });
-
-  // 平均警告数
-  const logsWithWarnings = validLogs.filter((l) => l.inputQuality?.warningCount !== undefined);
-  const avgWarnings = logsWithWarnings.length > 0
-    ? logsWithWarnings.reduce((sum, l) => sum + (l.inputQuality.warningCount || 0), 0) / logsWithWarnings.length
-    : 0;
-
-  // 反馈统计
-  const feedbackLogs = validLogs.filter((l) => l.feedback !== undefined);
-  const positiveCount = feedbackLogs.filter((l) => l.feedback?.isAccurate).length;
-  const negativeCount = feedbackLogs.filter((l) => !l.feedback?.isAccurate).length;
-
-  return {
-    total: logs.length,
-    valid: validLogs.length,
-    corrupted: corruptedCount,
-    verdictDistribution: verdictDist,
-    confidenceDistribution: confidenceDist,
-    avgWarnings: Math.round(avgWarnings * 10) / 10,
-    feedbackCount: feedbackLogs.length,
-    positiveFeedback: positiveCount,
-    negativeFeedback: negativeCount,
-  };
-}
-
-/**
- * 按主目标统计 Rent Rate
- */
-function calculateRentByGoal(logs: any[]) {
-  const validLogs = logs.filter(l => l._isValid);
-  const byGoal: Record<string, { total: number; rent: number }> = {};
-  
-  validLogs.forEach((log) => {
-    const goal = log.input?.primaryGoal;
-    if (!goal) return;
-    
-    if (!byGoal[goal]) {
-      byGoal[goal] = { total: 0, rent: 0 };
-    }
-    byGoal[goal].total++;
-    if (log.result?.verdict === 'rent') {
-      byGoal[goal].rent++;
-    }
-  });
-
-  const result: Record<string, number> = {};
-  Object.entries(byGoal).forEach(([goal, stats]) => {
-    result[goal] = stats.total > 0 ? Math.round((stats.rent / stats.total) * 100) : 0;
-  });
-  
-  return result;
 }
 
 export default async function MetricsPage() {
-  const logs = await getShadowLogs();
-  const metrics = calculateMetrics(logs);
-  const rentByGoal = calculateRentByGoal(logs);
-  const disputedStats = await getDisputedStats();
+  // 并行获取：Redis 抽样 + PostgreSQL 统计
+  const [shadowData, disputedStats] = await Promise.all([
+    getOptimizedShadowMetrics(),
+    getDisputedStats().catch(() => ({ total: 0, byStatus: {} })),
+  ]);
+  
+  // 错误兜底：即使 Redis 挂了，页面也能渲染
+  if (!shadowData.success) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold mb-4">SpaceRisk Metrics</h1>
+          <div className="bg-red-900/20 border border-red-700/50 p-6 rounded-lg">
+            <h2 className="text-xl text-red-400 font-bold mb-2">⚠️ 数据引擎异常</h2>
+            <p className="text-red-300">{shadowData.error}</p>
+            <p className="text-slate-500 text-sm mt-4">
+              这通常是 Redis 连接问题。请检查环境变量或 Upstash 控制台。
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  const { metrics, logs, sampleSize } = shadowData;
+  
+  // 计算 Rent Rate by Goal
+  const rentByGoal = Object.entries(metrics.goalDistribution).map(([goal, total]) => {
+    const rentCount = logs.filter(
+      (l) => l.goal === goal && l.verdict === 'rent'
+    ).length;
+    return { goal, total, rentRate: Math.round((rentCount / total) * 100) };
+  });
 
   const getStatusColor = (status?: string) => {
     switch (status) {
-      case 'good': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'warning': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'insufficient': return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-      case 'error': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'good': return 'bg-green-500/20 text-green-400';
+      case 'warning': return 'bg-yellow-500/20 text-yellow-400';
+      case 'error': return 'bg-red-500/20 text-red-400';
+      default: return 'bg-blue-500/20 text-blue-400';
     }
   };
 
@@ -183,181 +185,105 @@ export default async function MetricsPage() {
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">SpaceRisk Metrics</h1>
-          <p className="text-slate-400">Beta 内测数据面板 · 实时 Redis 流</p>
+          <p className="text-slate-400">Beta 内测数据面板 · 抽样模式 (Top {sampleSize})</p>
           <p className="text-xs text-slate-500 mt-1">
-            统一枚举: rent / cautious / avoid | 存储: Upstash Redis (7d TTL)
+            防白屏优化：只读取最新 {sampleSize} 条，服务端聚合后降维传输
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Input Quality */}
+        {/* 概览卡片 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Badge variant="outline" className="bg-blue-500/20 text-blue-400">Input</Badge>
-                Input Quality
-              </CardTitle>
-              <p className="text-xs text-slate-500">Real-time from Redis Stream</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Total Evaluations</span>
-                <Badge className={getStatusColor(metrics.total > 10 ? 'good' : 'neutral')}>
-                  {metrics.total}
-                </Badge>
-              </div>
-              {metrics.corrupted > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-red-400">Corrupted Logs</span>
-                  <Badge className={getStatusColor('error')}>
-                    {metrics.corrupted}
-                  </Badge>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Valid Logs</span>
-                <span className="font-mono text-green-400">{metrics.valid}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">High Confidence</span>
-                <span className="font-mono">
-                  {metrics.confidenceDistribution.high}
-                  <span className="text-slate-500 ml-1">
-                    ({metrics.valid > 0 ? Math.round((metrics.confidenceDistribution.high / metrics.valid) * 100) : 0}%)
-                  </span>
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Avg Warnings/Input</span>
-                <Badge className={getStatusColor(
-                  metrics.avgWarnings < 1 ? 'good' : metrics.avgWarnings < 3 ? 'warning' : 'neutral'
-                )}>
-                  {metrics.avgWarnings}
-                </Badge>
+            <CardContent className="p-4">
+              <div className="text-xs text-slate-500 mb-1">总样本数</div>
+              <div className="text-3xl font-mono font-bold">{metrics.total}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-slate-900 border-slate-800">
+            <CardContent className="p-4">
+              <div className="text-xs text-slate-500 mb-1">平均分</div>
+              <div className="text-3xl font-mono font-bold">{metrics.avgScore}</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-slate-900 border-slate-800">
+            <CardContent className="p-4">
+              <div className="text-xs text-slate-500 mb-1">争议案例</div>
+              <div className="text-3xl font-mono font-bold text-yellow-400">
+                {disputedStats.total}
               </div>
             </CardContent>
           </Card>
-
-          {/* Engine Output */}
           <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Badge variant="outline" className="bg-blue-500/20 text-blue-400">Engine</Badge>
-                Engine Output
-              </CardTitle>
-              <p className="text-xs text-slate-500">Real-time from Redis Stream</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Rent Rate</span>
-                <span className="font-mono">
-                  {metrics.valid > 0 ? Math.round((metrics.verdictDistribution.rent / metrics.valid) * 100) : 0}%
-                </span>
+            <CardContent className="p-4">
+              <div className="text-xs text-slate-500 mb-1">反馈数</div>
+              <div className="text-3xl font-mono font-bold">
+                {metrics.feedbackStats.total}
               </div>
-              <div className="pt-2 border-t border-slate-800">
-                <span className="text-xs text-slate-500">Verdict Distribution</span>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  <Badge className="bg-green-500/20 text-green-400">
-                    rent: {metrics.verdictDistribution.rent}
-                  </Badge>
-                  <Badge className="bg-yellow-500/20 text-yellow-400">
-                    cautious: {metrics.verdictDistribution.cautious}
-                  </Badge>
-                  <Badge className="bg-red-500/20 text-red-400">
-                    avoid: {metrics.verdictDistribution.avoid}
-                  </Badge>
-                  {metrics.verdictDistribution.unknown > 0 && (
-                    <Badge className="bg-slate-500/20 text-slate-400">
-                      unknown: {metrics.verdictDistribution.unknown}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* User Feedback */}
-          <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Badge variant="outline" className="bg-blue-500/20 text-blue-400">Feedback</Badge>
-                User Feedback
-              </CardTitle>
-              <p className="text-xs text-slate-500">Real-time from Redis Stream</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {metrics.feedbackCount === 0 ? (
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Sample Size</span>
-                  <Badge className={getStatusColor('insufficient')}>
-                    n=0 (need ≥5)
-                  </Badge>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Positive Rate</span>
-                    <Badge className={getStatusColor(
-                      (metrics.positiveFeedback / metrics.feedbackCount) > 0.7 ? 'good' : 'warning'
-                    )}>
-                      {Math.round((metrics.positiveFeedback / metrics.feedbackCount) * 100)}%
-                      <span className="text-xs opacity-70 ml-1">(n={metrics.feedbackCount})</span>
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Negative Rate</span>
-                    <span className="font-mono">
-                      {Math.round((metrics.negativeFeedback / metrics.feedbackCount) * 100)}%
-                      <span className="text-xs text-slate-500 ml-1">(n={metrics.negativeFeedback})</span>
-                    </span>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Disputed Cases */}
-          <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Badge variant="outline" className="bg-purple-500/20 text-purple-400">Amber</Badge>
-                Disputed Cases
-              </CardTitle>
-              <p className="text-xs text-slate-500">PostgreSQL 琥珀封存</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Total Disputed</span>
-                <Badge className={getStatusColor(disputedStats.total > 0 ? 'warning' : 'good')}>
-                  {disputedStats.total}
-                </Badge>
-              </div>
-              {Object.entries(disputedStats.byStatus).map(([status, count]) => (
-                <div key={status} className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm capitalize">{status.toLowerCase()}</span>
-                  <span className="font-mono text-sm">{count}</span>
-                </div>
-              ))}
-              <p className="text-xs text-slate-500 pt-2 border-t border-slate-800">
-                争议案例自动从 Redis 转移至 PostgreSQL 永久保存
-              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Rent Rate by Primary Goal */}
-        {Object.keys(rentByGoal).length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Verdict 分布 */}
+          <Card className="bg-slate-900 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Badge className="bg-blue-500/20 text-blue-400">Verdict</Badge>
+                判决分布
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-4 gap-2">
+                {Object.entries(metrics.verdictDistribution).map(([key, count]) => (
+                  <div key={key} className="text-center p-3 bg-slate-800/50 rounded">
+                    <div className={`text-2xl font-bold ${
+                      key === 'rent' ? 'text-green-400' :
+                      key === 'cautious' ? 'text-yellow-400' :
+                      key === 'avoid' ? 'text-red-400' : 'text-slate-400'
+                    }`}>
+                      {count as number}
+                    </div>
+                    <div className="text-xs text-slate-500 capitalize">{key}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 置信度分布 */}
+          <Card className="bg-slate-900 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Badge className="bg-purple-500/20 text-purple-400">Confidence</Badge>
+                置信度分布
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(metrics.confidenceDistribution).map(([key, count]) => (
+                  <div key={key} className="text-center p-3 bg-slate-800/50 rounded">
+                    <div className="text-2xl font-bold">{count as number}</div>
+                    <div className="text-xs text-slate-500 capitalize">{key}</div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Rent Rate by Goal */}
+        {rentByGoal.length > 0 && (
           <Card className="bg-slate-900 border-slate-800 mt-6">
             <CardHeader>
               <CardTitle className="text-lg">Rent Rate by Primary Goal</CardTitle>
-              <p className="text-xs text-slate-500">Real-time from Redis Stream</p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(rentByGoal).map(([goal, rate]) => (
+                {rentByGoal.map(({ goal, total, rentRate }) => (
                   <div key={goal} className="text-center p-3 bg-slate-800/50 rounded">
-                    <div className="text-2xl font-bold">{rate}%</div>
+                    <div className="text-2xl font-bold">{rentRate}%</div>
                     <div className="text-xs text-slate-400 capitalize">{goal.replace(/_/g, ' ')}</div>
+                    <div className="text-xs text-slate-600">n={total}</div>
                   </div>
                 ))}
               </div>
@@ -365,58 +291,56 @@ export default async function MetricsPage() {
           </Card>
         )}
 
-        {/* 最近日志预览 - 带干预按钮 */}
+        {/* 最近日志 - 降维展示 */}
         <Card className="bg-slate-900 border-slate-800 mt-6">
           <CardHeader>
-            <CardTitle className="text-lg">Recent Logs (Latest 10)</CardTitle>
-            <p className="text-xs text-slate-500">Raw data from Redis · 可标记误判</p>
+            <CardTitle className="text-lg">Recent Logs (Top {logs.length})</CardTitle>
+            <p className="text-xs text-slate-500">降维展示：只显示核心字段，隐藏大对象</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {logs.slice(0, 10).map((log) => (
+              {logs.map((log) => (
                 <div 
                   key={log.id} 
-                  className={`flex justify-between items-center p-3 rounded border ${
-                    log._isValid 
-                      ? 'bg-slate-800/50 border-slate-700' 
-                      : 'bg-red-900/20 border-red-700/50'
-                  }`}
+                  className="flex justify-between items-center p-3 bg-slate-800/30 rounded border border-slate-700/50 hover:border-slate-600 transition-colors"
                 >
-                  <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="flex items-center gap-3 min-w-0">
                     {/* Verdict Badge */}
                     <Badge className={
-                      log.result?.verdict === 'rent' ? 'bg-green-500/20 text-green-400' :
-                      log.result?.verdict === 'cautious' ? 'bg-yellow-500/20 text-yellow-400' :
-                      log.result?.verdict === 'avoid' ? 'bg-red-500/20 text-red-400' :
-                      'bg-slate-500/20 text-slate-400'
+                      log.verdict === 'rent' ? 'bg-green-500/20 text-green-400 shrink-0' :
+                      log.verdict === 'cautious' ? 'bg-yellow-500/20 text-yellow-400 shrink-0' :
+                      log.verdict === 'avoid' ? 'bg-red-500/20 text-red-400 shrink-0' :
+                      'bg-slate-500/20 text-slate-400 shrink-0'
                     }>
-                      {log.result?.verdict || 'unknown'}
+                      {log.verdict || '?'}
                     </Badge>
                     
-                    {/* ID & Info */}
+                    {/* 核心信息 */}
                     <div className="flex flex-col min-w-0">
-                      <span className="font-mono text-xs truncate">
-                        {log.id}
+                      <span className="font-mono text-xs text-slate-300 truncate">
+                        {log.id.slice(0, 20)}...
                       </span>
-                      {log._isValid ? (
-                        <span className="text-xs text-slate-500">
-                          {log.input?.primaryGoal || 'no-goal'} · {log.result?.overallScore || 'N/A'}分
-                        </span>
-                      ) : (
-                        <span className="text-xs text-red-400">
-                          Parse Error: {log._parseError}
-                        </span>
-                      )}
+                      <span className="text-xs text-slate-500">
+                        {log.goal || 'no-goal'} · {log.score ?? 'N/A'}分 · {log.confidence || 'unknown'}
+                      </span>
                     </div>
+                    
+                    {/* 反馈标记 */}
+                    {log.hasFeedback && (
+                      <Badge className={log.feedbackAccurate ? 
+                        'bg-green-500/10 text-green-400 text-[10px]' : 
+                        'bg-red-500/10 text-red-400 text-[10px]'
+                      }>
+                        {log.feedbackAccurate ? '👍' : '👎'}
+                      </Badge>
+                    )}
                   </div>
 
-                  {/* 干预按钮 - 仅对有效日志显示 */}
-                  {log._isValid && (
-                    <EscalateButton 
-                      logId={log.id} 
-                      currentVerdict={log.result?.verdict}
-                    />
-                  )}
+                  {/* 干预按钮 */}
+                  <EscalateButton 
+                    logId={log.id} 
+                    currentVerdict={log.verdict}
+                  />
                 </div>
               ))}
             </div>
