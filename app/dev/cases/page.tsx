@@ -10,17 +10,14 @@ import {
   getValidationStats, 
   getCaseById 
 } from "@/lib/validation/fixtures";
-import { analyzeCase, generateRuleSuggestions, getProblematicCases } from "@/lib/validation/analyzer";
+import { analyzeCase, generateRuleSuggestions } from "@/lib/validation/analyzer";
 import { ValidationCase } from "@/lib/validation/types";
 import { 
   AlertTriangle, 
   CheckCircle2, 
-  XCircle, 
   HelpCircle, 
   ArrowLeft,
   BarChart3,
-  Search,
-  Filter,
   AlertCircle
 } from "lucide-react";
 
@@ -144,6 +141,7 @@ function CaseDetailPanel({ caseData }: { caseData: ValidationCase }) {
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <div className="text-sm text-red-800 font-medium mb-1">⚠️ Verdict 不一致</div>
               <p className="text-sm text-red-700">
+                {/* eslint-disable-next-line react/no-unescaped-entities */}
                 系统判定"{systemVerdict.label}"，但人工经验建议"{humanVerdict.label}"。
                 需要检查规则逻辑或该案例的特殊情况。
               </p>

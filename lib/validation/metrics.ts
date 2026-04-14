@@ -1,5 +1,5 @@
 // 验证统计指标计算
-import { ValidationCase, CaseComparison } from './types';
+import { ValidationCase } from './types';
 import { analyzeCase } from './analyzer';
 
 export interface ValidationMetrics {

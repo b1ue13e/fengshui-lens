@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { ArrowRight, ArrowLeft, Check, Sun, Wind, Building2 } from "lucide-react";
 import { 
   KITCHEN_TYPES,
@@ -26,7 +25,11 @@ import {
   type BedPosition,
   type DeskPosition,
   type Ventilation,
+  type WindowExposure,
+  type UnitPosition,
 } from "@/types";
+
+type RoommateSituation = "couple" | "single" | "friends" | "strangers";
 
 // 选项卡片组件
 function OptionCard({ 
@@ -168,10 +171,10 @@ export default function SpaceDetailPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     hasWestFacingWindow: false,
-    windowExposure: "full" as "full" | "partial" | "blocked",
+    windowExposure: "full" as WindowExposure,
     facesMainRoad: false,
     nearElevator: false,
-    unitPosition: "middle" as "corner" | "middle" | "end",
+    unitPosition: "middle" as UnitPosition,
     hasBalcony: false,
     kitchenType: "" as KitchenType | "",
     bathroomPosition: "" as BathroomPosition | "",
@@ -180,7 +183,7 @@ export default function SpaceDetailPage() {
     ventilation: "" as Ventilation | "",
     dampSigns: [] as string[],
     isShared: false,
-    roommateSituation: "" as "couple" | "single" | "friends" | "strangers" | "",
+    roommateSituation: "" as RoommateSituation | "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -230,13 +233,13 @@ export default function SpaceDetailPage() {
           <Label className="text-stone-700 mb-2 block">窗外采光情况</Label>
           <div className="space-y-2">
             {windowOptions.map((opt) => (
-              <RadioCard
-                key={opt.value}
-                name="windowExposure"
-                checked={formData.windowExposure === opt.value}
-                onChange={() => setFormData({ ...formData, windowExposure: opt.value as any })}
-                title={opt.label}
-              />
+                <RadioCard
+                  key={opt.value}
+                  name="windowExposure"
+                  checked={formData.windowExposure === opt.value}
+                  onChange={() => setFormData({ ...formData, windowExposure: opt.value })}
+                  title={opt.label}
+                />
             ))}
           </div>
         </div>
@@ -271,7 +274,7 @@ export default function SpaceDetailPage() {
               <OptionCard
                 key={opt.value}
                 selected={formData.unitPosition === opt.value}
-                onClick={() => setFormData({ ...formData, unitPosition: opt.value as any })}
+                onClick={() => setFormData({ ...formData, unitPosition: opt.value })}
                 className="p-3 text-center"
               >
                 <span className="text-sm">{opt.label}</span>
@@ -318,7 +321,7 @@ export default function SpaceDetailPage() {
                 key={opt.value}
                 name="bathroom"
                 checked={formData.bathroomPosition === opt.value}
-                onChange={() => setFormData({ ...formData, bathroomPosition: opt.value as any })}
+                onChange={() => setFormData({ ...formData, bathroomPosition: opt.value })}
                 title={opt.label}
               />
             ))}
@@ -427,7 +430,7 @@ export default function SpaceDetailPage() {
                 <OptionCard
                   key={opt.value}
                   selected={formData.roommateSituation === opt.value}
-                  onClick={() => setFormData({ ...formData, roommateSituation: opt.value as any })}
+                  onClick={() => setFormData({ ...formData, roommateSituation: opt.value as RoommateSituation })}
                   className="p-3 text-center"
                 >
                   <span className="text-sm">{opt.label}</span>

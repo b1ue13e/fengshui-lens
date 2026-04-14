@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluate, assessMitigability } from '../index';
+import { assessMitigability, evaluate, normalizeInput } from '../index';
 import { testCases, getTestCase } from './fixtures/cases';
 import { DIMENSIONS } from '../../constants/evaluation';
 
@@ -178,7 +178,7 @@ describe('可缓解性评估', () => {
     
     const dampRisk = result.risks.find(r => r.id === 'damp_signs');
     if (dampRisk) {
-      const mitigability = assessMitigability(dampRisk, testCase.input);
+      const mitigability = assessMitigability(dampRisk, normalizeInput(testCase.input));
       // damp_signs 本身可通过除湿机等软装缓解，但 ground_floor_damp 更难
       expect(['easy', 'moderate', 'hard']).toContain(mitigability);
     }
@@ -191,7 +191,7 @@ describe('可缓解性评估', () => {
     const noiseRisk = result.risks.find(r => r.id === 'street_noise');
     if (noiseRisk) {
       const inputNoSoft = { ...testCase.input, allowsSoftImprovements: false };
-      const mitigability = assessMitigability(noiseRisk, inputNoSoft);
+      const mitigability = assessMitigability(noiseRisk, normalizeInput(inputNoSoft));
       expect(mitigability).toBe('hard');
     }
   });

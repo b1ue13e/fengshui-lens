@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:disputed": "vitest run lib/engine/__tests__/fixtures/real-cases.test.ts",
+    "test": "vitest --globals --environment node --pool threads lib",
+    "test:run": "vitest run --globals --environment node --pool threads lib",
+    "test:disputed": "vitest run --globals --environment node --pool threads lib/engine/__tests__/disputed-cases.test.ts",
     "sync:disputed": "npx tsx scripts/sync-disputed.ts",
     "test:fight": "npm run sync:disputed && npm run test:disputed"
   },

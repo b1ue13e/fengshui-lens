@@ -3,7 +3,7 @@
  * 提供三组典型空间布局数据，用于测试规则引擎和开发 UI
  */
 
-import { SpaceLayout, RoomType, Direction, RuleViolation } from '@/types/space';
+import { SpaceLayout, RuleViolation } from '@/types/space';
 
 // ==================== Mock 数据 1: 典型卧室（含多个常见问题） ====================
 export const mockBedroom: SpaceLayout = {

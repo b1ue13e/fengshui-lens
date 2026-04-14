@@ -1,4 +1,4 @@
-import { RiskItem, RecommendedAction, NormalizedInput, PrimaryGoal, Dimension } from './types';
+import { RiskItem, RecommendedAction, NormalizedInput, PrimaryGoal } from './types';
 import { actionRegistry } from '../actions/registry';
 import { riskActionMap } from '../actions/mappings';
 

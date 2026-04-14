@@ -99,13 +99,13 @@ export function transformRawToEngineInput(
   const layoutType = parseLayout(data.layout, warnings, addWarning);
   const areaSqm = parseArea(data.area, warnings, addWarning);
   const orientation = parseOrientation(data.orientation, warnings, addWarning);
-  const floorLevel = parseFloorLevel(data.floor_info, data.floor_level, warnings, addWarning);
-  const totalFloors = parseTotalFloors(data.floor_info, data.total_floors, warnings, addWarning);
-  const hasElevator = parseHasElevator(data.has_elevator, data.floor_info, warnings, addWarning);
-  const buildingAge = parseBuildingAge(data.building_age, warnings, addWarning);
+  const floorLevel = parseFloorLevel(data.floor_info, data.floor_level);
+  const totalFloors = parseTotalFloors(data.floor_info, data.total_floors, addWarning);
+  const hasElevator = parseHasElevator(data.has_elevator, data.floor_info, addWarning);
+  const buildingAge = parseBuildingAge(data.building_age);
   
   const hasWestFacingWindow = extractFromTags(data.tags, ['西晒', '西向', '朝西']);
-  const facesMainRoad = parseFacesMainRoad(data.is_near_main_road, data.tags, warnings, addWarning);
+  const facesMainRoad = parseFacesMainRoad(data.is_near_main_road, data.tags);
   const nearElevator = extractFromTags(data.tags, ['电梯旁', '近电梯']);
   const isShared = parseIsShared(data.rent_type);
   const roommateSituation = parseRoommateSituation(data.rent_type, data.title, warnings, addWarning);
@@ -170,8 +170,10 @@ export function transformRawToEngineInput(
 function calculateConfidence(warnings: TransformWarning[]): TransformConfidence {
   const highCount = warnings.filter(w => w.severity === 'high').length;
   const mediumCount = warnings.filter(w => w.severity === 'medium').length;
+  const isCriticalField = (field: string): field is keyof EvaluationInput =>
+    CRITICAL_FIELDS.includes(field as keyof EvaluationInput);
   const criticalFieldWarnings = warnings.filter(w => 
-    CRITICAL_FIELDS.includes(w.field as any) && (w.severity === 'high' || w.severity === 'medium')
+    isCriticalField(w.field) && (w.severity === 'high' || w.severity === 'medium')
   );
   
   // 关键字段有 high warning -> low
@@ -252,9 +254,7 @@ function parseOrientation(
 
 function parseFloorLevel(
   floorInfo: string | undefined,
-  floorLevel: string | undefined,
-  warnings: TransformWarning[],
-  addWarning: (field: string, code: TransformWarningCode, message: string, severity: 'low' | 'medium' | 'high') => void
+  floorLevel: string | undefined
 ): FloorLevel {
   if (floorLevel) {
     const normalized = floorLevel.toLowerCase();
@@ -287,7 +287,6 @@ function parseFloorLevel(
 function parseTotalFloors(
   floorInfo: string | undefined,
   totalFloors: string | number | undefined,
-  warnings: TransformWarning[],
   addWarning: (field: string, code: TransformWarningCode, message: string, severity: 'low' | 'medium' | 'high') => void
 ): number {
   if (typeof totalFloors === 'number') return totalFloors;
@@ -308,7 +307,6 @@ function parseTotalFloors(
 function parseHasElevator(
   hasElevator: boolean | string | undefined,
   floorInfo: string | undefined,
-  warnings: TransformWarning[],
   addWarning: (field: string, code: TransformWarningCode, message: string, severity: 'low' | 'medium' | 'high') => void
 ): boolean {
   if (typeof hasElevator === 'boolean') return hasElevator;
@@ -332,9 +330,7 @@ function parseHasElevator(
 }
 
 function parseBuildingAge(
-  buildingAge: string | number | undefined,
-  warnings: TransformWarning[],
-  addWarning: (field: string, code: TransformWarningCode, message: string, severity: 'low' | 'medium' | 'high') => void
+  buildingAge: string | number | undefined
 ): BuildingAge {
   let year: number | null = null;
   
@@ -357,9 +353,7 @@ function parseBuildingAge(
 
 function parseFacesMainRoad(
   isNearMainRoad: boolean | string | undefined,
-  tags: string[] | string | undefined,
-  warnings: TransformWarning[],
-  addWarning: (field: string, code: TransformWarningCode, message: string, severity: 'low' | 'medium' | 'high') => void
+  tags: string[] | string | undefined
 ): boolean {
   if (typeof isNearMainRoad === 'boolean') return isNearMainRoad;
   if (typeof isNearMainRoad === 'string') {

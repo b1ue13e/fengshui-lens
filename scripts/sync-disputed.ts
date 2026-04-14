@@ -66,7 +66,7 @@ export const realDisputedCases: DisputedTestCase[] = [
 
   // 3. 遍历拼接数据
   for (const c of cases) {
-    let inputObj: any = {};
+    let inputObj: Record<string, unknown> = {};
     try {
       inputObj = JSON.parse(c.rawInput);
     } catch {

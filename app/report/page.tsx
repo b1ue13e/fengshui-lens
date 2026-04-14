@@ -6,7 +6,6 @@ import {
   Download,
   Printer,
   Share2,
-  Home,
   Maximize2,
   Wind,
   Sun,
@@ -15,11 +14,9 @@ import {
   CheckCircle2,
   Lightbulb,
   Clock,
-  Calendar,
   FileText,
   Camera,
   Sparkles,
-  ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

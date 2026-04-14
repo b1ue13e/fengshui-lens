@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { ArrowRight, ArrowLeft, Loader2, Check, Target, Wallet, Wrench } from "lucide-react";
 import { 
   PRIMARY_GOALS,
@@ -141,9 +139,15 @@ export default function LivingNeedsPage() {
       await submitEvaluation(fullData);
       // 如果成功，submitEvaluation 内部会 redirect，不会执行到这里
       console.log("[Submit] Success (should redirect)");
-    } catch (err: any) {
-      console.error("[Submit] Error:", err);
-      console.error("[Submit] Error stack:", err.stack);
+    } catch (err) {
+      if (!(err instanceof Error)) {
+        setError("鎻愪氦澶辫触锛岃绋嶅悗鍐嶈瘯");
+        setIsSubmitting(false);
+        return;
+      }
+      const error = err instanceof Error ? err : new Error("鏈煡閿欒锛岃妫€鏌ユ帶鍒跺彴");
+      console.error("[Submit] Error:", error);
+      console.error("[Submit] Error stack:", error.stack);
       setError(`❌ 提交失败: ${err.message || "未知错误，请检查控制台"}`);
       setIsSubmitting(false);
     }

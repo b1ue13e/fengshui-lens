@@ -40,7 +40,7 @@ export function generateReportSummaryPrompt(result: EngineResult): string {
 }
 
 export function generateChatScriptPrompt(result: EngineResult): string {
-  const { risks, actions, verdict } = result;
+  const { risks, actions } = result;
   
   const riskDescriptions = risks.map(r => `${r.title}: ${r.description}`).join('\n');
   const actionDescriptions = actions.map(a => `${a.title} (${a.costRange})`).join('\n');

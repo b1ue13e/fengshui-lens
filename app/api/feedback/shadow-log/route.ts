@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { waitUntil } from '@vercel/functions';
 import { prisma } from '@/lib/prisma';
+import type { ShadowLogEntry } from '@/lib/feedback/shadow-logger';
 
 // 延迟初始化 Redis（避免构建时失败）
 let redis: ReturnType<typeof Redis.fromEnv> | null = null;
@@ -33,12 +34,18 @@ const CONFIG = {
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+type ShadowLogLike = Partial<ShadowLogEntry> & { id: string };
+
+function isShadowLogLike(value: unknown): value is ShadowLogLike {
+  return typeof value === 'object' && value !== null && 'id' in value && typeof (value as { id: unknown }).id === 'string';
+}
+
 /**
  * POST - 接收日志
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json() as { logs?: unknown[] };
     const { logs } = body;
 
     if (!Array.isArray(logs) || logs.length === 0) {
@@ -48,11 +55,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const enrichedLogs = logs.map((log: any) => ({
+    const incomingLogs = logs.filter(isShadowLogLike);
+    if (incomingLogs.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid logs provided' },
+        { status: 400 }
+      );
+    }
+
+    const enrichedLogs = incomingLogs.map((log) => ({
       ...log,
       serverTime: Date.now(),
       environment: process.env.NODE_ENV,
     }));
+    const disputedLogs = enrichedLogs.filter(
+      (log) => log.feedback && !log.feedback.isAccurate
+    );
 
     if (process.env.NODE_ENV === 'production') {
       // 写入 Redis（非阻塞）
@@ -70,19 +88,18 @@ export async function POST(req: NextRequest) {
       };
 
       waitUntil(writeLogTask());
-      
-      // 争议案例 → PostgreSQL（永久保存）
-      const disputedLogs = enrichedLogs.filter(
-        (log) => log.feedback && !log.feedback.isAccurate
-      );
-      
+
       if (disputedLogs.length > 0) {
         waitUntil(persistDisputedCases(disputedLogs));
       }
     } else {
       // 开发环境：打印到控制台
       console.log(`[ShadowLog] Received ${enrichedLogs.length} logs:`);
-      enrichedLogs.forEach((log: any, i: number) => {
+      enrichedLogs.forEach((log, i: number) => {
+        if (!log.result) {
+          console.log(`  [${i + 1}] ${log.id}: unknown (N/A鍒?)`);
+          return;
+        }
         console.log(`  [${i + 1}] ${log.id}: ${log.result.verdict} (${log.result.overallScore}分)`);
         if (log.feedback) {
           console.log(`      Feedback: ${log.feedback.isAccurate ? '✓' : '✗'} ${log.feedback.userComment || ''}`);
@@ -90,11 +107,8 @@ export async function POST(req: NextRequest) {
       });
       
       // 开发环境也演示争议案例持久化
-      const disputedLogs = enrichedLogs.filter(
-        (log) => log.feedback && !log.feedback.isAccurate
-      );
       if (disputedLogs.length > 0) {
-        console.log(`[ShadowLog] ${disputedLogs.length} disputed case(s) detected (would persist to DB in production)`);
+        await persistDisputedCases(disputedLogs);
       }
     }
 
@@ -116,16 +130,16 @@ export async function POST(req: NextRequest) {
 /**
  * 将争议案例永久存入 PostgreSQL（黄金样本）
  */
-async function persistDisputedCases(logs: any[]) {
+async function persistDisputedCases(logs: ShadowLogLike[]) {
   try {
     for (const log of logs) {
       await prisma.disputedCase.create({
         data: {
-          sessionId: log.sessionId,
+          sessionId: log.sessionId ?? log.id,
           originalUrl: log.meta?.url,
           engineVersion: log.meta?.version || '1.2.0',
           rawInput: JSON.stringify(log.input),
-          verdictIssued: log.result?.verdict,
+          verdictIssued: log.result?.verdict ?? 'unknown',
           userFeedback: log.feedback?.userComment,
           correctedVerdict: log.feedback?.correctedVerdict,
           status: 'PENDING', // 等待人工确认
@@ -134,7 +148,8 @@ async function persistDisputedCases(logs: any[]) {
     }
     
     console.log(`[DisputedCases] ✅ ${logs.length} case(s) persisted to PostgreSQL`);
-  } catch (e) {
+  } catch (error) {
+    const e = error;
     console.error('[DisputedCases] ❌ Failed to persist:', e);
   }
 }
@@ -160,7 +175,7 @@ export async function GET(req: NextRequest) {
     const parsedLogs = rawLogs.map((logStr: string) => {
       try {
         return typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
-      } catch (e) {
+      } catch {
         return { id: 'error', meta: { error: 'Failed to parse log' } };
       }
     });

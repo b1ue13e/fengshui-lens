@@ -1,4 +1,4 @@
-import { RiskItem, NormalizedInput, PrimaryGoal } from './types';
+import { RiskItem, NormalizedInput } from './types';
 
 export interface DecisionNote {
   type: 'structural_defect' | 'shared_coordination' | 'mitigation_limited';
@@ -15,7 +15,7 @@ export function generateDecisionNote(
   risks: RiskItem[],
   input: NormalizedInput
 ): DecisionNote | undefined {
-  const { primaryGoal, isShared, roommateSituation, facesMainRoad, floorLevel, buildingAge } = input;
+  const { primaryGoal, isShared, roommateSituation, facesMainRoad } = input;
 
   // 1. 结构性缺陷：备考 + 临街噪音（特别是中低楼层）
   if (primaryGoal === 'exam_prep' && facesMainRoad) {

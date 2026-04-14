@@ -265,7 +265,7 @@ export function formatMetricsForDisplay(summary: MetricsSummary): MetricsDisplay
             label: 'Positive Feedback', 
             value: formatRate(userFeedback.positiveRate),
             status: userFeedback.positiveRate.status === 'insufficient' ? 'insufficient' : 
-                    (userFeedback.positiveRate as any).value > 70 ? 'good' : 'warning',
+                    userFeedback.positiveRate.value > 70 ? 'good' : 'warning',
           },
           { 
             label: 'Negative Feedback', 

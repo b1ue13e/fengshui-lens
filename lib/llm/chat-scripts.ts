@@ -9,7 +9,7 @@
  * 所有话术基于真实问题生成，不编造
  */
 
-import { EngineResult, RiskItem, Dimension } from "@/types";
+import { EngineResult, Dimension } from "@/types";
 
 export interface ChatScript {
   scenario: 'negotiate' | 'repair' | 'renovation';

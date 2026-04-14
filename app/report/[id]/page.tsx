@@ -13,7 +13,6 @@ import { ChatScriptSection } from "./chat-section";
 import { UncertaintyAlerts } from "./uncertainty-alerts";
 import { FeedbackSection } from "./feedback-section";
 import { DecisionNoteCard } from "@/components/ui/decision-note";
-import { FeedbackMicro } from "@/components/ui/feedback-micro";
 import { 
   Home, 
   Volume2, 
@@ -166,12 +165,10 @@ function getSuitabilityInfo(report: EvaluationReport) {
 // 维度评分条组件
 function DimensionBar({ 
   dimension, 
-  score, 
-  maxScore 
+  score
 }: { 
   dimension: Dimension; 
-  score: number; 
-  maxScore: number;
+  score: number;
 }) {
   const config = dimensionConfig[dimension];
   const Icon = config.icon;
@@ -397,16 +394,16 @@ export default function ReportPage() {
           </section>
 
           {/* Decision Note - 分享模式 */}
-          {(report as any).decisionNote && (
-            <div className={`p-4 rounded-xl border ${(report as any).decisionNote?.severity === 'high' ? 'bg-orange-50 border-orange-200' : 'bg-yellow-50 border-yellow-200'}`}>
+          {report.decisionNote && (
+            <div className={`p-4 rounded-xl border ${report.decisionNote.severity === 'high' ? 'bg-orange-50 border-orange-200' : 'bg-yellow-50 border-yellow-200'}`}>
               <div className="flex items-start gap-3">
-                <AlertTriangle className={`h-5 w-5 flex-shrink-0 ${(report as any).decisionNote?.severity === 'high' ? 'text-orange-600' : 'text-yellow-600'}`} />
+                <AlertTriangle className={`h-5 w-5 flex-shrink-0 ${report.decisionNote.severity === 'high' ? 'text-orange-600' : 'text-yellow-600'}`} />
                 <div>
-                  <h4 className={`font-semibold text-sm ${(report as any).decisionNote?.severity === 'high' ? 'text-orange-900' : 'text-yellow-900'}`}>
-                    {(report as any).decisionNote?.title}
+                  <h4 className={`font-semibold text-sm ${report.decisionNote.severity === 'high' ? 'text-orange-900' : 'text-yellow-900'}`}>
+                    {report.decisionNote.title}
                   </h4>
-                  <p className={`text-xs mt-1 ${(report as any).decisionNote?.severity === 'high' ? 'text-orange-800' : 'text-yellow-800'}`}>
-                    {(report as any).decisionNote?.message}
+                  <p className={`text-xs mt-1 ${report.decisionNote.severity === 'high' ? 'text-orange-800' : 'text-yellow-800'}`}>
+                    {report.decisionNote.message}
                   </p>
                 </div>
               </div>
@@ -523,8 +520,8 @@ export default function ReportPage() {
         </section>
 
         {/* ② Decision Note - 结构性缺陷提示（核心阻断） */}
-        {(report as any).decisionNote && (
-          <DecisionNoteCard note={(report as any).decisionNote} />
+        {report.decisionNote && (
+          <DecisionNoteCard note={report.decisionNote} />
         )}
 
         {/* ③ 六维评分 - 紧凑条形图 */}
@@ -540,8 +537,7 @@ export default function ReportPage() {
                   key={dim.dimension}
                   dimension={dim.dimension}
                   score={dim.score}
-                  maxScore={Math.max(...sortedDimensions.map(d => d.score))}
-                />
+              />
               ))}
             </CardContent>
           </Card>
@@ -626,15 +622,7 @@ export default function ReportPage() {
         {/* ⑦ 不确定性提示 */}
         <UncertaintyAlerts report={report} />
 
-        {/* ⑧ 用户反馈（轻量微交互） */}
-        {report.verdict === 'cautious' && (
-          <FeedbackMicro 
-            logId={report.id} 
-            topRiskTitle={report.risks[0]?.title}
-          />
-        )}
-        
-        {/* 详细反馈 */}
+        {/* ⑧ 详细反馈 */}
         <FeedbackSection reportId={report.id} />
 
         {/* Footer Actions */}

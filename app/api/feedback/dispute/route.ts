@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { prisma } from '@/lib/prisma';
+import type { ShadowLogEntry } from '@/lib/feedback/shadow-logger';
 
 const REDIS_KEY = 'shadow:logs:beta';
 const SEARCH_LIMIT = 500; // 只在最近500条里找，性能优化
@@ -23,36 +24,69 @@ function getRedis() {
   return redis;
 }
 
+function isShadowLogEntry(value: unknown): value is ShadowLogEntry {
+  return typeof value === 'object' && value !== null && 'id' in value;
+}
+
 // 强制动态渲染，防止构建时静态生成
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function isMissingTableError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'P2021';
+}
+
+async function createDisputedCase(
+  targetLog: ShadowLogEntry,
+  userFeedback?: string,
+  expectedVerdict?: string,
+) {
+  return prisma.disputedCase.create({
+    data: {
+      sessionId: targetLog.sessionId || targetLog.id,
+      originalUrl: targetLog.meta?.url,
+      engineVersion: targetLog.meta?.version || '1.2.0',
+      rawInput: JSON.stringify(targetLog.input || {}),
+      verdictIssued: targetLog.result?.verdict || 'unknown',
+      userFeedback,
+      correctedVerdict: expectedVerdict,
+      status: 'PENDING',
+      syncedToTest: false,
+    }
+  });
+}
+
 export async function POST(req: Request) {
   try {
-    const { logId, userFeedback, expectedVerdict } = await req.json();
+    const { logId, userFeedback, expectedVerdict, logSnapshot } = await req.json();
     
-    if (!logId) {
+    if (!logId && !isShadowLogEntry(logSnapshot)) {
       return NextResponse.json(
-        { error: 'Missing logId' },
+        { error: 'Missing logId or logSnapshot' },
         { status: 400 }
       );
     }
 
     // 1. 遍历抽样池，精准捞取那条被标记的日志
     // 进阶技巧：为了性能，只在最近的 500 条里找
-    const rawLogs = await getRedis().lrange(REDIS_KEY, 0, SEARCH_LIMIT - 1);
-    let targetLog: any = null;
-    
-    for (const logStr of rawLogs) {
-      try {
-        const log = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
-        if (log.id === logId) {
-          targetLog = log;
-          break;
+    let targetLog: ShadowLogEntry | null = null;
+
+    if (isShadowLogEntry(logSnapshot)) {
+      targetLog = logSnapshot;
+    } else {
+      const rawLogs = await getRedis().lrange(REDIS_KEY, 0, SEARCH_LIMIT - 1);
+
+      for (const logStr of rawLogs) {
+        try {
+          const log: unknown = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
+          if (isShadowLogEntry(log) && log.id === logId) {
+            targetLog = log;
+            break;
+          }
+        } catch {
+          // 跳过脏数据，继续搜索
+          continue;
         }
-      } catch {
-        // 跳过脏数据，继续搜索
-        continue;
       }
     }
 
@@ -65,19 +99,7 @@ export async function POST(req: Request) {
 
     // 2. 琥珀封存：写入 PostgreSQL
     // 依据之前设计的 DisputedCase Schema
-    const disputedCase = await prisma.disputedCase.create({
-      data: {
-        sessionId: targetLog.sessionId || targetLog.id,
-        originalUrl: targetLog.meta?.url,
-        engineVersion: targetLog.meta?.version || '1.2.0',
-        rawInput: JSON.stringify(targetLog.input || {}), // 完整的输入数据
-        verdictIssued: targetLog.result?.verdict || 'unknown',
-        userFeedback: userFeedback,
-        correctedVerdict: expectedVerdict, // 用户认为正确的判决
-        status: 'PENDING',
-        syncedToTest: false,
-      }
-    });
+    const disputedCase = await createDisputedCase(targetLog, userFeedback, expectedVerdict);
 
     console.log(`[Dispute] Case ${disputedCase.id} created for log ${logId}`);
 
@@ -118,6 +140,14 @@ export async function GET() {
       }, {} as Record<string, number>),
     });
   } catch (error) {
+    if (isMissingTableError(error)) {
+      return NextResponse.json({
+        total: 0,
+        byStatus: {},
+        warning: 'disputed_cases table has not been created locally yet',
+      });
+    }
+
     console.error('[Dispute] GET Error:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

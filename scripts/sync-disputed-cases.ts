@@ -13,7 +13,7 @@
  *   或 npm run sync:disputed
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type DisputedCase } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -33,7 +33,7 @@ function generateTestCaseId(index: number): string {
 /**
  * 将数据库案例转换为测试用例格式
  */
-function convertToTestCase(dbCase: any, index: number): string {
+function convertToTestCase(dbCase: DisputedCase, index: number): string {
   const testId = generateTestCaseId(index);
   const rawInput = JSON.parse(dbCase.rawInput);
   
@@ -57,7 +57,7 @@ function convertToTestCase(dbCase: any, index: number): string {
 /**
  * 更新 fixtures 文件
  */
-async function updateFixturesFile(cases: any[]): Promise<number> {
+async function updateFixturesFile(cases: DisputedCase[]): Promise<number> {
   // 确保目录存在
   if (!fs.existsSync(FIXTURES_DIR)) {
     fs.mkdirSync(FIXTURES_DIR, { recursive: true });
@@ -65,7 +65,7 @@ async function updateFixturesFile(cases: any[]): Promise<number> {
 
   // 读取现有文件内容（如果存在）
   let existingContent = '';
-  let existingCases: string[] = [];
+  const existingCases: string[] = [];
   
   if (fs.existsSync(DISPUTED_CASES_FILE)) {
     existingContent = fs.readFileSync(DISPUTED_CASES_FILE, 'utf-8');

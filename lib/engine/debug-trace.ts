@@ -1,7 +1,6 @@
 // 调试追踪工具 - 用于分析具体案例的判定路径
 import { evaluate } from './index';
 import { EvaluationInput, EngineResult } from './types';
-import { calculateVerdict } from './verdict';
 
 interface TraceResult {
   input: EvaluationInput;

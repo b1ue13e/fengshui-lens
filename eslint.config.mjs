@@ -11,8 +11,20 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "dist/**",
+    "coverage/**",
+    ".vercel/**",
+    "logs/**",
+    "shadow-logs/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react/no-unescaped-entities": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

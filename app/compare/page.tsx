@@ -18,7 +18,6 @@ import {
   Brain,
   CheckCircle2,
   TrendingUp,
-  TrendingDown,
   Minus,
   ArrowRight
 } from "lucide-react";

@@ -3,8 +3,13 @@
 import { prisma } from '@/lib/prisma';
 import { Redis } from '@upstash/redis';
 import { revalidatePath } from 'next/cache';
+import type { ShadowLogEntry } from '@/lib/feedback/shadow-logger';
 
 const REDIS_KEY = 'shadow:logs:beta';
+
+function isShadowLogEntry(value: unknown): value is ShadowLogEntry {
+  return typeof value === 'object' && value !== null && 'id' in value;
+}
 
 /**
  * 将争议案例从 Redis 转移至 PostgreSQL（琥珀封存）
@@ -17,15 +22,13 @@ export async function escalateToPostgres(logId: string, userFeedback?: string) {
     // 注意：Redis list 不支持直接按 ID 查找，需要遍历
     const rawLogs = await redis.lrange(REDIS_KEY, 0, 1000);
     
-    let targetLog: any = null;
-    let targetLogStr: string | null = null;
+    let targetLog: ShadowLogEntry | null = null;
     
     for (const logStr of rawLogs) {
       try {
-        const parsed = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
-        if (parsed.id === logId) {
+        const parsed: unknown = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
+        if (isShadowLogEntry(parsed) && parsed.id === logId) {
           targetLog = parsed;
-          targetLogStr = logStr as string;
           break;
         }
       } catch {

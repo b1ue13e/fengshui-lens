@@ -7,7 +7,7 @@
  * 3. 避免纯静态名单，考虑实际改善可能性
  */
 
-import { NormalizedInput, PrimaryGoal, RiskItem, Verdict } from './types';
+import { NormalizedInput, RiskItem, Verdict } from './types';
 
 interface VerdictContext {
   score: number;

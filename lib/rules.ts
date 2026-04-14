@@ -18,8 +18,6 @@ import {
   RuleViolation,
   RuleCategory,
   FixSuggestion,
-  Furniture,
-  Door,
   Point,
   Rectangle,
   Direction,
@@ -311,10 +309,6 @@ const bedAgainstWindowRule: Rule = {
 
     // 找到床头的位置（与 facing 相反的方向）
     const headDirection = GeometryUtils.getOppositeDirection(bed.facing);
-    const bedHeadPoint: Point = {
-      x: bed.position.x + bed.size.width / 2,
-      y: bed.position.y + (headDirection === 'north' ? 0 : bed.size.length),
-    };
 
     // 检查是否有窗户在床头附近
     const windowBehind = space.windows.find(w => {

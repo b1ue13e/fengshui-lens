@@ -4,6 +4,37 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EscalateButton } from './escalate-button';
 import { getDisputedStats } from './actions';
+import type { ShadowLogEntry } from '@/lib/feedback/shadow-logger';
+
+type ParsedShadowLog = ShadowLogEntry & { serverTime?: number; environment?: string };
+
+interface ShadowMetrics {
+  total: number;
+  verdictDistribution: { rent: number; cautious: number; avoid: number; unknown: number };
+  confidenceDistribution: { high: number; medium: number; low: number };
+  goalDistribution: Record<string, number>;
+  feedbackStats: { total: number; positive: number; negative: number };
+  avgScore: number;
+}
+
+interface TrimmedLog {
+  id: string;
+  verdict?: ShadowLogEntry['result']['verdict'];
+  score?: number;
+  goal?: string;
+  confidence?: NonNullable<ShadowLogEntry['inputQuality']>['confidence'];
+  hasFeedback: boolean;
+  feedbackAccurate?: boolean;
+  timestamp?: number;
+}
+
+type ShadowMetricsResult =
+  | { success: true; metrics: ShadowMetrics; logs: TrimmedLog[]; sampleSize: number }
+  | { success: false; error: string };
+
+function isParsedShadowLog(value: unknown): value is ParsedShadowLog {
+  return typeof value === 'object' && value !== null && 'id' in value;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -15,14 +46,14 @@ const TIMEOUT_MS = 5000; // 5秒超时兜底
 /**
  * 安全解析单条日志
  */
-function safeParseLog(logStr: string): any | null {
+function safeParseLog(logStr: string): ParsedShadowLog | null {
   try {
-    const data = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
-    if (!data || typeof data !== 'object' || !data.id) {
+    const data: unknown = typeof logStr === 'string' ? JSON.parse(logStr) : logStr;
+    if (!isParsedShadowLog(data)) {
       return null;
     }
     return data;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -30,7 +61,7 @@ function safeParseLog(logStr: string): any | null {
 /**
  * 优化的数据抓取：只读最新 50 条，带超时兜底
  */
-async function getOptimizedShadowMetrics() {
+async function getOptimizedShadowMetrics(): Promise<ShadowMetricsResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   
@@ -44,10 +75,10 @@ async function getOptimizedShadowMetrics() {
     // 核心优化 2：流式解析，脏数据自动过滤
     const parsedLogs = rawLogs
       .map(safeParseLog)
-      .filter((log): log is any => log !== null);
+      .filter((log): log is ParsedShadowLog => log !== null);
     
     // 核心优化 3：服务端做轻量聚合，不传输原始大对象到客户端
-    const metrics = {
+    const metrics: ShadowMetrics = {
       total: parsedLogs.length,
       verdictDistribution: { rent: 0, cautious: 0, avoid: 0, unknown: 0 },
       confidenceDistribution: { high: 0, medium: 0, low: 0 },
@@ -100,7 +131,7 @@ async function getOptimizedShadowMetrics() {
     metrics.avgScore = scoreCount > 0 ? Math.round((totalScore / scoreCount) * 10) / 10 : 0;
     
     // 核心优化 4：降维渲染 - 只保留展示必需字段，剔除庞大的 rawInput
-    const trimmedLogs = parsedLogs.map((log) => ({
+    const trimmedLogs: TrimmedLog[] = parsedLogs.map((log) => ({
       id: log.id,
       verdict: log.result?.verdict,
       score: log.result?.overallScore,
@@ -161,25 +192,14 @@ export default async function MetricsPage() {
     );
   }
   
-  const { metrics = {} as any, logs = [], sampleSize = 50 } = shadowData;
+  const { metrics, logs, sampleSize } = shadowData;
   
   // 计算 Rent Rate by Goal
-  const rentByGoal = Object.entries(metrics.goalDistribution || {}).map(([goal, total]: [string, any]) => {
+  const rentByGoal = Object.entries(metrics.goalDistribution).map(([goal, total]) => {
     const totalNum = Number(total) || 0;
-    const rentCount = (logs || []).filter(
-      (l: any) => l.goal === goal && l.verdict === 'rent'
-    ).length;
+    const rentCount = logs.filter((log) => log.goal === goal && log.verdict === 'rent').length;
     return { goal, total: totalNum, rentRate: totalNum > 0 ? Math.round((rentCount / totalNum) * 100) : 0 };
   });
-
-  const getStatusColor = (status?: string) => {
-    switch (status) {
-      case 'good': return 'bg-green-500/20 text-green-400';
-      case 'warning': return 'bg-yellow-500/20 text-yellow-400';
-      case 'error': return 'bg-red-500/20 text-red-400';
-      default: return 'bg-blue-500/20 text-blue-400';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
