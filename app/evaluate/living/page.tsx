@@ -2,86 +2,31 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, ArrowLeft, Loader2, Check, Target, Wallet, Wrench } from "lucide-react";
-import { 
-  PRIMARY_GOALS,
-  BUDGET_RANGES,
-  PRIMARY_GOAL_LABELS,
-  BUDGET_RANGE_LABELS,
-  type PrimaryGoal,
-  type BudgetRange,
-} from "@/types";
+import { ArrowLeft, ArrowRight, Loader2, Target, Wallet, Wrench } from "lucide-react";
 import { submitEvaluation } from "@/app/actions";
+import { Button } from "@/components/ui/button";
+import {
+  ChoiceCard,
+  FormSection,
+  NotePanel,
+  PageIntro,
+  ToggleCard,
+} from "@/components/evaluate/form-primitives";
+import {
+  BUDGET_RANGES,
+  BUDGET_RANGE_LABELS,
+  PRIMARY_GOALS,
+  PRIMARY_GOAL_LABELS,
+  type BudgetRange,
+  type PrimaryGoal,
+} from "@/types";
 
-// 选项卡片组件
-function OptionCard({ 
-  selected, 
-  onClick, 
-  children,
-  className = ""
-}: { 
-  selected: boolean; 
-  onClick: () => void; 
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-        selected
-          ? "border-stone-900 bg-stone-900 text-white"
-          : "border-stone-200 bg-white hover:border-stone-300 text-stone-900"
-      } ${className}`}
-    >
-      {selected && (
-        <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-white/20 flex items-center justify-center">
-          <Check className="h-3 w-3 text-white" />
-        </div>
-      )}
-      {children}
-    </button>
-  );
-}
-
-// Checkbox 卡片组件
-function CheckboxCard({ 
-  checked, 
-  onChange, 
-  title, 
-  description 
-}: { 
-  checked: boolean; 
-  onChange: (checked: boolean) => void; 
-  title: string;
-  description?: string;
-}) {
-  return (
-    <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-      checked ? 'border-stone-900 bg-stone-50' : 'border-stone-200 hover:bg-stone-50'
-    }`}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-5 w-5 rounded border-stone-300 text-stone-900 focus:ring-stone-900 mt-0.5"
-      />
-      <div className="flex-1">
-        <div className="font-medium text-stone-900 text-sm">{title}</div>
-        {description && <div className="text-xs text-stone-500 mt-1">{description}</div>}
-      </div>
-    </label>
-  );
-}
-
-const goalOptions = PRIMARY_GOALS.map(value => ({
+const goalOptions = PRIMARY_GOALS.map((value) => ({
   value,
   ...PRIMARY_GOAL_LABELS[value],
 }));
 
-const budgetOptions = BUDGET_RANGES.map(value => ({
+const budgetOptions = BUDGET_RANGES.map((value) => ({
   value,
   label: BUDGET_RANGE_LABELS[value],
 }));
@@ -89,6 +34,7 @@ const budgetOptions = BUDGET_RANGES.map(value => ({
 export default function LivingNeedsPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     primaryGoal: "" as PrimaryGoal | "",
     monthlyBudget: "" as BudgetRange | "",
@@ -97,30 +43,23 @@ export default function LivingNeedsPage() {
     allowsSoftImprovements: true,
   });
 
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
     try {
       const basicInfo = JSON.parse(sessionStorage.getItem("basicInfo") || "{}");
       const spaceInfo = JSON.parse(sessionStorage.getItem("spaceInfo") || "{}");
-      
-      console.log("[Submit] basicInfo:", basicInfo);
-      console.log("[Submit] spaceInfo:", spaceInfo);
-      console.log("[Submit] formData:", formData);
-      
-      // 验证必要数据
+
       if (!basicInfo.layoutType || !basicInfo.areaSqm) {
-        setError("❌ 缺少基础信息，请返回第一步重新填写");
+        setError("缺少基础信息，请返回第一步重新填写。");
         setIsSubmitting(false);
         return;
       }
-      
+
       if (!formData.primaryGoal || !formData.monthlyBudget) {
-        setError("❌ 请选择居住目标和预算范围");
+        setError("请选择居住目标和预算范围。");
         setIsSubmitting(false);
         return;
       }
@@ -133,154 +72,143 @@ export default function LivingNeedsPage() {
         totalFloors: parseInt(basicInfo.totalFloors) || 0,
         dampSigns: spaceInfo.dampSigns || [],
       };
-      
-      console.log("[Submit] fullData:", fullData);
 
       await submitEvaluation(fullData);
-      // 如果成功，submitEvaluation 内部会 redirect，不会执行到这里
-      console.log("[Submit] Success (should redirect)");
     } catch (err) {
       if (!(err instanceof Error)) {
-        setError("鎻愪氦澶辫触锛岃绋嶅悗鍐嶈瘯");
+        setError("提交失败，请稍后再试。");
         setIsSubmitting(false);
         return;
       }
-      const error = err instanceof Error ? err : new Error("鏈煡閿欒锛岃妫€鏌ユ帶鍒跺彴");
-      console.error("[Submit] Error:", error);
-      console.error("[Submit] Error stack:", error.stack);
-      setError(`❌ 提交失败: ${err.message || "未知错误，请检查控制台"}`);
+
+      console.error("[Submit] Error:", err);
+      setError(`提交失败：${err.message || "未知错误，请稍后再试。"}`);
       setIsSubmitting(false);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 text-stone-500 text-sm mb-2">
-          <Target className="h-4 w-4" />
-          <span>步骤 3/3</span>
-        </div>
-        <h1 className="text-2xl font-bold text-stone-900 mb-2">居住需求</h1>
-        <p className="text-stone-600">了解你的目标和约束，生成针对性建议</p>
-      </div>
+  const isLockedMode =
+    !formData.allowsLightRenovation &&
+    !formData.allowsFurnitureMove &&
+    !formData.allowsSoftImprovements;
 
-      {/* 居住目标 */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-stone-900 uppercase tracking-wider flex items-center gap-2">
-          <Target className="h-4 w-4" />
-          居住目标
-        </h2>
-        <p className="text-sm text-stone-600">选择你的主要居住目标，我们会据此调整评分权重</p>
-        
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PageIntro
+        step="STEP 3 / 3"
+        title="最后补上你的取舍标准。"
+        description="同一套房，对不同租客的结论可能完全不同。这里会告诉系统你更在意什么、预算在哪个区间，以及你能接受哪些补救动作。"
+        icon={Target}
+        chips={["约 1 分钟", "决定权重", "生成最终报告"]}
+      />
+
+      <FormSection
+        title="居住目标"
+        description="先告诉系统你最在意的核心目标，报告会据此调整风险排序和建议重点。"
+        icon={Target}
+      >
         <div className="space-y-3">
           {goalOptions.map((opt) => (
-            <OptionCard
+            <ChoiceCard
               key={opt.value}
               selected={formData.primaryGoal === opt.value}
               onClick={() => setFormData({ ...formData, primaryGoal: opt.value })}
-              className="w-full"
-            >
-              <div className="font-medium text-base mb-1">{opt.label}</div>
-              <div className={`text-sm ${formData.primaryGoal === opt.value ? "text-stone-300" : "text-stone-500"}`}>
-                {opt.desc}
-              </div>
-            </OptionCard>
+              title={opt.label}
+              description={opt.desc}
+              className="min-h-0"
+            />
           ))}
         </div>
-      </section>
+      </FormSection>
 
-      {/* 预算范围 */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-stone-900 uppercase tracking-wider flex items-center gap-2">
-          <Wallet className="h-4 w-4" />
-          预算范围
-        </h2>
-        
+      <FormSection
+        title="预算范围"
+        description="预算会影响建议的语气和可执行性，例如是优先保守筛房，还是接受一定缺点换取性价比。"
+        icon={Wallet}
+      >
         <div className="space-y-2">
           {budgetOptions.map((opt) => (
-            <OptionCard
+            <ChoiceCard
               key={opt.value}
               selected={formData.monthlyBudget === opt.value}
               onClick={() => setFormData({ ...formData, monthlyBudget: opt.value })}
-              className="w-full py-3"
-            >
-              <span className="text-sm font-medium">{opt.label}</span>
-            </OptionCard>
+              title={opt.label}
+              className="min-h-0"
+            />
           ))}
         </div>
-      </section>
+      </FormSection>
 
-      {/* 改造意愿 */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-stone-900 uppercase tracking-wider flex items-center gap-2">
-          <Wrench className="h-4 w-4" />
-          改造意愿
-        </h2>
-        <p className="text-sm text-stone-600">
-          评估后会推荐低成本改造方案，请确认你是否接受以下类型的改善
-        </p>
-
+      <FormSection
+        title="你能接受的调整方式"
+        description="报告会优先推荐你能接受的补救动作。如果完全不能改动，系统会更偏向保守筛选。"
+        icon={Wrench}
+      >
         <div className="space-y-3">
-          <CheckboxCard
+          <ToggleCard
             checked={formData.allowsLightRenovation}
-            onChange={(checked) => setFormData({ ...formData, allowsLightRenovation: checked })}
-            title="轻改造"
-            description="如贴隔热膜、安装密封条、打孔安装置物架等"
+            onChange={(checked) =>
+              setFormData({ ...formData, allowsLightRenovation: checked })
+            }
+            title="接受轻改造"
+            description="例如贴隔热膜、加密封条、打孔安装置物架等。"
           />
-
-          <CheckboxCard
+          <ToggleCard
             checked={formData.allowsFurnitureMove}
-            onChange={(checked) => setFormData({ ...formData, allowsFurnitureMove: checked })}
-            title="移动家具"
-            description="调整床、书桌、柜子等大型家具的位置"
+            onChange={(checked) =>
+              setFormData({ ...formData, allowsFurnitureMove: checked })
+            }
+            title="接受移动家具"
+            description="例如调整床、书桌、柜子等大型家具位置。"
           />
-
-          <CheckboxCard
+          <ToggleCard
             checked={formData.allowsSoftImprovements}
-            onChange={(checked) => setFormData({ ...formData, allowsSoftImprovements: checked })}
-            title="增加软装"
-            description="添置遮光帘、地毯、屏风、除湿机等"
+            onChange={(checked) =>
+              setFormData({ ...formData, allowsSoftImprovements: checked })
+            }
+            title="接受增加软装"
+            description="例如遮光帘、地毯、屏风、除湿机和收纳件。"
           />
         </div>
 
-        {(!formData.allowsLightRenovation && !formData.allowsFurnitureMove && !formData.allowsSoftImprovements) && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm text-amber-800">
-              <strong>提示：</strong>如果不接受任何改造，评估将仅基于房源现有条件给出建议。
-            </p>
-          </div>
-        )}
-      </section>
+        {isLockedMode ? (
+          <NotePanel title="当前是完全不改动模式" tone="warning">
+            这样系统会更倾向于直接判断是否值得租，而不是推荐补救方案。
+          </NotePanel>
+        ) : null}
+      </FormSection>
 
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-          <strong>错误：</strong>{error}
+      {error ? (
+        <div className="rounded-[1.35rem] border border-destructive/20 bg-destructive/8 px-4 py-4 text-sm text-destructive">
+          <strong className="mr-1">提交失败：</strong>
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {/* Submit Buttons */}
-      <div className="flex gap-3">
-        <Button 
-          type="button" 
-          variant="outline" 
-          className="flex-1 h-12" 
+      <NotePanel title="提交后会直接生成报告">
+        报告会先给出结论摘要，再展开风险依据、可补救空间和沟通建议。
+      </NotePanel>
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 flex-1 rounded-full border-border bg-background/80"
           onClick={() => router.back()}
           disabled={isSubmitting}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           上一步
         </Button>
-        <Button 
-          type="submit" 
-          className="flex-1 h-12 text-base"
+        <Button
+          type="submit"
+          className="h-12 flex-1 rounded-full text-base"
           disabled={!formData.primaryGoal || !formData.monthlyBudget || isSubmitting}
         >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              分析中...
+              正在生成报告...
             </>
           ) : (
             <>

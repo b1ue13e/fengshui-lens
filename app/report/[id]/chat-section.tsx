@@ -1,128 +1,131 @@
 "use client";
 
-import { useState } from "react";
-import { EngineResult } from "@/types";
+import { useMemo, useState } from "react";
+import { Check, Copy, MessageSquare, Paintbrush, Volume2, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Copy, Check, Volume2, Wrench, Paintbrush } from "lucide-react";
-import { generateChatScripts, ChatScript } from "@/lib/llm/chat-scripts";
+import { EngineResult } from "@/types";
+import { ChatScript, generateChatScripts } from "@/lib/llm/chat-scripts";
 
 interface ChatSectionProps {
   report: EngineResult;
 }
 
-const scenarioConfig = {
-  negotiate: { 
-    label: '议价', 
+const scenarioMeta = {
+  negotiate: {
+    label: "谈价格",
+    description: "把报告里的问题转成更有依据的议价表达。",
     icon: Volume2,
-    desc: '基于房屋问题争取合理价格'
   },
-  repair: { 
-    label: '维修', 
+  repair: {
+    label: "谈维修",
+    description: "明确哪些问题应由房东先解决，哪些可以换成价格让步。",
     icon: Wrench,
-    desc: '要求房东解决房屋问题'
   },
-  renovation: { 
-    label: '改造', 
+  renovation: {
+    label: "谈改造",
+    description: "入住后想做低成本调整时，提前把边界说清楚。",
     icon: Paintbrush,
-    desc: '申请允许入住后轻改造'
   },
-};
+} as const;
 
-const toneConfig = {
-  gentle: { label: '温和协商', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  firm: { label: '现实压价', color: 'bg-amber-100 text-amber-800 border-amber-200' },
-  direct: { label: '直接指出', color: 'bg-stone-100 text-stone-800 border-stone-200' },
-};
+const toneMeta = {
+  gentle: { label: "温和协商", color: "bg-sky-100 text-sky-800 border-sky-200" },
+  firm: { label: "现实压价", color: "bg-amber-100 text-amber-800 border-amber-200" },
+  direct: { label: "直接指出", color: "bg-stone-200 text-stone-800 border-stone-300" },
+} as const;
 
 function ScriptCard({ script }: { script: ChatScript }) {
   const [copied, setCopied] = useState(false);
-  
-  const handleCopy = () => {
-    navigator.clipboard.writeText(script.content);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(script.content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 1800);
   };
-  
+
   return (
-    <div className="p-4 rounded-lg bg-stone-50 border border-stone-200">
-      <div className="flex items-center justify-between mb-3">
-        <Badge className={`text-xs ${toneConfig[script.tone].color}`}>
-          {toneConfig[script.tone].label}
-        </Badge>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-8 px-2"
+    <article className="rounded-[1.35rem] border border-border bg-background/72 px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Badge className={toneMeta[script.tone].color}>{toneMeta[script.tone].label}</Badge>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 rounded-full px-3 text-muted-foreground"
           onClick={handleCopy}
         >
           {copied ? (
             <>
-              <Check className="h-4 w-4 mr-1 text-green-600" />
-              <span className="text-green-600">已复制</span>
+              <Check className="mr-1 h-4 w-4 text-emerald-600" />
+              已复制
             </>
           ) : (
             <>
-              <Copy className="h-4 w-4 mr-1" />
-              复制
+              <Copy className="mr-1 h-4 w-4" />
+              复制话术
             </>
           )}
         </Button>
       </div>
-      <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap">
+      <p className="mt-3 text-sm leading-7 text-foreground whitespace-pre-wrap">
         {script.content}
       </p>
-    </div>
+    </article>
   );
 }
 
 export function ChatScriptSection({ report }: ChatSectionProps) {
-  const scripts = generateChatScripts(report);
-  const [activeScenario, setActiveScenario] = useState<'negotiate' | 'repair' | 'renovation'>('negotiate');
-  
-  const scenarioScripts = scripts.filter(s => s.scenario === activeScenario);
-  
+  const [activeScenario, setActiveScenario] = useState<
+    "negotiate" | "repair" | "renovation"
+  >("negotiate");
+
+  const scripts = useMemo(() => generateChatScripts(report), [report]);
+  const scenarioScripts = scripts.filter((item) => item.scenario === activeScenario);
+
   return (
-    <Card className="border-stone-200">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-stone-600" />
-          与房东/中介沟通话术
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs 
-          value={activeScenario} 
-          onValueChange={(v) => setActiveScenario(v as typeof activeScenario)}
-        >
-          <TabsList className="grid w-full grid-cols-3 mb-4">
-            {(Object.keys(scenarioConfig) as Array<keyof typeof scenarioConfig>).map((key) => {
-              const config = scenarioConfig[key];
-              const Icon = config.icon;
-              return (
-                <TabsTrigger key={key} value={key} className="flex items-center gap-1.5">
-                  <Icon className="h-3.5 w-3.5" />
-                  {config.label}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-          
-          {(Object.keys(scenarioConfig) as Array<keyof typeof scenarioConfig>).map((scenario) => (
-            <TabsContent key={scenario} value={scenario} className="space-y-3">
-              <p className="text-xs text-stone-500 mb-3">
-                {scenarioConfig[scenario].desc} · 三种语气版本可选
-              </p>
-              
-              {scenarioScripts.map((script) => (
-                <ScriptCard key={`${script.scenario}-${script.tone}`} script={script} />
-              ))}
-            </TabsContent>
-          ))}
-        </Tabs>
-      </CardContent>
-    </Card>
+    <section className="paper-panel rounded-[1.8rem] p-6">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="size-4 text-primary" />
+        <span className="section-kicker">沟通话术</span>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {(Object.keys(scenarioMeta) as Array<keyof typeof scenarioMeta>).map((key) => {
+          const meta = scenarioMeta[key];
+          const Icon = meta.icon;
+          const active = activeScenario === key;
+
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveScenario(key)}
+              className={`rounded-[1.35rem] border px-4 py-4 text-left transition-all ${
+                active
+                  ? "border-primary/25 bg-primary/8 shadow-[0_10px_24px_rgba(45,67,55,0.08)]"
+                  : "border-border bg-background/72 hover:border-primary/20 hover:bg-card"
+              }`}
+            >
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Icon className="size-4" />
+                {meta.label}
+              </div>
+              <p className="mt-2 text-sm leading-7 text-muted-foreground">{meta.description}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-5 text-sm leading-7 text-muted-foreground">
+        下面提供三种语气版本，你可以直接复制后按实际情况调整金额、维修项或时间要求。
+      </p>
+
+      <div className="mt-4 space-y-3">
+        {scenarioScripts.map((script) => (
+          <ScriptCard key={`${script.scenario}-${script.tone}`} script={script} />
+        ))}
+      </div>
+    </section>
   );
 }

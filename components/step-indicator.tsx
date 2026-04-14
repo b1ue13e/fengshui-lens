@@ -1,61 +1,54 @@
 "use client";
 
+import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 
 const steps = [
   { path: "/evaluate", label: "基础信息", number: 1 },
-  { path: "/evaluate/space", label: "空间评估", number: 2 },
+  { path: "/evaluate/space", label: "空间情况", number: 2 },
   { path: "/evaluate/living", label: "居住需求", number: 3 },
 ];
 
 export function StepIndicator() {
   const pathname = usePathname();
-  const currentIndex = steps.findIndex(s => pathname === s.path);
+  const currentIndex = steps.findIndex((step) => pathname === step.path);
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center gap-1.5 sm:gap-2">
       {steps.map((step, index) => {
         const isCompleted = index < currentIndex;
         const isCurrent = index === currentIndex;
 
         return (
-          <div key={step.path} className="flex items-center">
-            {/* Step Circle */}
-            <div className="flex flex-col items-center">
-              <div
-                className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-                  isCompleted
-                    ? "bg-stone-900 text-white"
-                    : isCurrent
-                    ? "bg-stone-900 text-white ring-2 ring-stone-200"
-                    : "bg-stone-200 text-stone-500"
-                }`}
-              >
-                {isCompleted ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  step.number
-                )}
-              </div>
+          <Fragment key={step.path}>
+            <div
+              className={`flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs transition-colors sm:px-3 ${
+                isCompleted
+                  ? "border-primary/20 bg-primary/10 text-primary"
+                  : isCurrent
+                    ? "border-border bg-card text-foreground shadow-[0_8px_24px_rgba(95,83,57,0.08)]"
+                    : "border-border/90 bg-background/70 text-muted-foreground"
+              }`}
+            >
               <span
-                className={`text-[10px] mt-1 hidden sm:block ${
-                  isCurrent ? "text-stone-900 font-medium" : "text-stone-500"
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-medium ${
+                  isCompleted
+                    ? "bg-primary text-primary-foreground"
+                    : isCurrent
+                      ? "bg-secondary text-secondary-foreground"
+                      : "bg-muted text-muted-foreground"
                 }`}
               >
-                {step.label}
+                {isCompleted ? <Check className="size-3.5" /> : step.number}
               </span>
+              <span className="hidden whitespace-nowrap sm:block">{step.label}</span>
             </div>
 
-            {/* Connector Line */}
             {index < steps.length - 1 && (
-              <div
-                className={`w-8 sm:w-12 h-px mx-1 sm:mx-2 transition-colors ${
-                  isCompleted ? "bg-stone-900" : "bg-stone-200"
-                }`}
-              />
+              <div className="h-px w-3 bg-border sm:w-5" />
             )}
-          </div>
+          </Fragment>
         );
       })}
     </div>
