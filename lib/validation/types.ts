@@ -1,7 +1,12 @@
 // 真实房源验证系统类型定义
 // 用于内部验证引擎准确性，不对外暴露
 
-import { EvaluationInput, EngineResult, Verdict, PrimaryGoal } from "@/types";
+import {
+  EvaluationInput,
+  EngineResult,
+  PrimaryGoal,
+  Verdict,
+} from "@/lib/rent-tools/types";
 
 export interface ValidationCase {
   id: string;

@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".tmp-seed-build",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "incremental": false,
+    "isolatedModules": false,
+    "allowJs": false
+  },
+  "files": [
+    "scripts/export-young-study-seed.ts",
+    "scripts/export-survival-knowledge-seed.ts"
+  ]
+}

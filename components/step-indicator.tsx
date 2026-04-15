@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 
 const steps = [
-  { path: "/evaluate", label: "基础信息", number: 1 },
-  { path: "/evaluate/space", label: "空间情况", number: 2 },
-  { path: "/evaluate/living", label: "居住需求", number: 3 },
+  { path: "/rent/tools/evaluate", label: "记房源底子", number: 1 },
+  { path: "/rent/tools/evaluate/space", label: "查现场风险", number: 2 },
+  { path: "/rent/tools/evaluate/living", label: "定你的底线", number: 3 },
 ];
 
 export function StepIndicator() {
@@ -45,9 +45,7 @@ export function StepIndicator() {
               <span className="hidden whitespace-nowrap sm:block">{step.label}</span>
             </div>
 
-            {index < steps.length - 1 && (
-              <div className="h-px w-3 bg-border sm:w-5" />
-            )}
+            {index < steps.length - 1 && <div className="h-px w-3 bg-border sm:w-5" />}
           </Fragment>
         );
       })}

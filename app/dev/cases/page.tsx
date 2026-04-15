@@ -20,6 +20,7 @@ import {
   BarChart3,
   AlertCircle
 } from "lucide-react";
+import { assertInternalPageAccess } from "@/lib/internal-access";
 
 const statusConfig = {
   pending: { label: "待验证", color: "bg-stone-100 text-stone-700", icon: HelpCircle },
@@ -302,6 +303,8 @@ function StatsPanel() {
 }
 
 export default function ValidationCasesPage() {
+  assertInternalPageAccess();
+
   const cases = getAllCases();
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(cases[0]?.id || null);
   const [filter, setFilter] = useState<'all' | 'disputed' | 'confirmed'>('all');

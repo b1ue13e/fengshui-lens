@@ -91,7 +91,7 @@ export function ExtractionScanner({ isScanning, onComplete }: ExtractionScannerP
                 transition={{ repeat: Infinity, duration: 1.4 }}
                 className="mt-2 text-xs uppercase tracking-[0.28em] text-stone-500"
               >
-                SpaceRisk Inspect
+                Rental Tool Inspect
               </motion.div>
             </div>
           </div>
@@ -148,7 +148,7 @@ export function ExtractionScanner({ isScanning, onComplete }: ExtractionScannerP
             animate={{ opacity: [0.3, 0.7, 0.3] }}
             transition={{ repeat: Infinity, duration: 3 }}
           >
-            SpaceRisk Scanner v1.2.0
+            Rental Tool Scanner v1.2.0
           </motion.div>
         </motion.div>
       )}

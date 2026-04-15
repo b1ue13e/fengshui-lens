@@ -53,6 +53,9 @@ yarn-error.log*
 
 # OS
 *.log
+.tmp-seed-build/
+playwright-report/
+test-results/
 
 # Prisma
 *.db

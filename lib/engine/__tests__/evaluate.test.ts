@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { assessMitigability, evaluate, normalizeInput } from '../index';
 import { testCases, getTestCase } from './fixtures/cases';
-import { DIMENSIONS } from '../../constants/evaluation';
+import { DIMENSIONS } from "../../rent-tools/constants/evaluation";
 
-describe('SpaceRisk 评估引擎 - 8组样例验证', () => {
+describe('租房风险评估引擎 - 8组样例验证', () => {
   testCases.forEach((testCase) => {
     it(`[${testCase.id}] ${testCase.name}`, () => {
       const result = evaluate(testCase.input);

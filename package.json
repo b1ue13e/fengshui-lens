@@ -1,14 +1,19 @@
 {
-  "name": "fengshui-lens",
+  "name": "young-study",
   "version": "0.1.0",
   "private": true,
+  "description": "青年大学习：面向中国大学生、实习生和刚进入社会年轻人的现实场景生存指南 Web App，包含租房风险评估等高级工具。",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "seed:export": "node scripts/run-seed-export.mjs young-study",
+    "seed:survival": "node scripts/run-seed-export.mjs survival",
+    "smoke:routes": "powershell -ExecutionPolicy Bypass -File scripts/smoke-routes.ps1",
     "test": "vitest --globals --environment node --pool threads lib",
     "test:run": "vitest run --globals --environment node --pool threads lib",
+    "test:e2e": "node scripts/run-e2e.mjs",
     "test:disputed": "vitest run --globals --environment node --pool threads lib/engine/__tests__/disputed-cases.test.ts",
     "sync:disputed": "npx tsx scripts/sync-disputed.ts",
     "test:fight": "npm run sync:disputed && npm run test:disputed"
@@ -16,14 +21,18 @@
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@prisma/client": "^5.22.0",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.0",
     "@upstash/redis": "^1.37.0",
     "@vercel/functions": "^3.4.3",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.37.0",
+    "fuse.js": "^7.3.0",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
+    "next-themes": "^0.4.6",
     "openai": "^6.29.0",
     "prisma": "^5.22.0",
     "react": "19.2.3",
@@ -31,9 +40,11 @@
     "shadcn": "^4.0.8",
     "tailwind-merge": "^3.5.0",
     "tw-animate-css": "^1.4.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

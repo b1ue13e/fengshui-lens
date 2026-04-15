@@ -1,8 +1,8 @@
-# SpaceRisk 排序校准报告 v4（最终版）
+# 租房风险评估引擎排序校准报告 v4（最终版）
 
 ## 一句话说明
 
-SpaceRisk 当前为**保守策略版租房决策辅助引擎**：优先避免放过高风险房源，在当前验证案例中 verdict 表现稳定，但风险排序与第一建议动作仍在持续校准中。
+当前租房风险评估引擎为**保守策略版租房决策辅助引擎**：优先避免放过高风险房源，在当前验证案例中 verdict 表现稳定，但风险排序与第一建议动作仍在持续校准中。
 
 ---
 
@@ -175,5 +175,5 @@ function getSceneDimensionBonus(dim: Dimension, goal: PrimaryGoal): number {
 ---
 
 **校准完成时间**: 2026-03-17
-**校准工程师**: SpaceRisk Sorting Calibration Agent
+**校准工程师**: Rental Tool Sorting Calibration Agent
 **系统状态**: 可标注为"保守策略版"投入使用

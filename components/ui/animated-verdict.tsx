@@ -10,22 +10,19 @@ interface AnimatedVerdictProps {
 }
 
 export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictProps) {
-  // 核心拆解 1：定义风水物理学 (Variants)
+  // 定义三种判断结果的入场动画
   const verdictVariants = {
-    // 升腾与轻盈 - 吉
     rent: {
       y: [20, 0],
       scale: [0.9, 1],
       opacity: [0, 1],
       transition: { type: "spring" as const, stiffness: 300, damping: 20 },
     },
-    // 沉闷与微颤 - 平/凶带吉
     cautious: {
       x: [-5, 5, -5, 5, 0],
       opacity: [0, 1],
       transition: { duration: 0.5, ease: "easeInOut" as const },
     },
-    // 沉重坠落与爆震 - 大凶 (Shake effect)
     avoid: {
       scale: [1.2, 0.95, 1.05, 1],
       y: [-50, 0],
@@ -42,7 +39,6 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
     },
   };
 
-  // 核心拆解 2：样式基因重组
   const styles = {
     rent: "border-primary bg-primary/10 text-primary shadow-[0_0_30px_rgba(16,185,129,0.3)]",
     cautious: "border-yellow-500 bg-yellow-500/10 text-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.3)]",
@@ -50,15 +46,15 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
   };
 
   const labels = {
-    rent: "🟢 宜居 (Rent)",
-    cautious: "🟡 观望 (Cautious)",
-    avoid: "🔴 避坑 (Avoid)",
+    rent: "🟢 可以继续了解",
+    cautious: "🟡 带着问题再核验",
+    avoid: "🔴 先别急着租",
   };
 
   const descriptions = {
-    rent: "气场通畅，龙脉汇聚",
-    cautious: "风云变幻，需细斟酌",
-    avoid: "煞气冲天，速速远离",
+    rent: "整体条件较稳，可以继续核验关键细节",
+    cautious: "存在重点疑问，现场再确认后更稳妥",
+    avoid: "短板较难低成本补救，建议及时止损",
   };
 
   return (
@@ -100,7 +96,7 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
         {labels[verdict]}
       </motion.h2>
       
-      {/* 风水批语 */}
+      {/* 补充说明 */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -118,7 +114,7 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
           transition={{ delay: 0.5 }}
           className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/50 border border-current/30"
         >
-          <span className="text-sm opacity-60">契合度</span>
+          <span className="text-sm opacity-60">判断分数</span>
           <span className="text-2xl font-mono font-bold">{score}</span>
           <span className="text-sm opacity-60">/100</span>
         </motion.div>
@@ -142,13 +138,13 @@ export function AnimatedVerdict({ verdict, score, className }: AnimatedVerdictPr
 }
 
 /**
- * 三档判决预览组件（用于展示/调试）
+ * 三档判断预览组件（用于展示/调试）
  */
 export function VerdictShowcase() {
   return (
     <div className="flex flex-col gap-6 p-8 max-w-2xl mx-auto">
       <h3 className="text-center text-slate-400 text-sm uppercase tracking-wider mb-4">
-        风水判决动画预览
+        租房判断动画预览
       </h3>
       <AnimatedVerdict verdict="rent" score={92} />
       <AnimatedVerdict verdict="cautious" score={65} />

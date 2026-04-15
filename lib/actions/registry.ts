@@ -1,4 +1,4 @@
-import { ActionDefinition } from '@/types';
+import { ActionDefinition } from "@/lib/rent-tools/types";
 
 export const actionRegistry: Record<string, ActionDefinition> = {
   // === 遮光/采光类 ===

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { EscalateButton } from './escalate-button';
 import { getDisputedStats } from './actions';
 import type { ShadowLogEntry } from '@/lib/feedback/shadow-logger';
+import { assertInternalPageAccess } from '@/lib/internal-access';
 
 type ParsedShadowLog = ShadowLogEntry & { serverTime?: number; environment?: string };
 
@@ -168,6 +169,8 @@ async function getOptimizedShadowMetrics(): Promise<ShadowMetricsResult> {
 }
 
 export default async function MetricsPage() {
+  assertInternalPageAccess();
+
   // 并行获取：Redis 抽样 + PostgreSQL 统计
   const [shadowData, disputedStats] = await Promise.all([
     getOptimizedShadowMetrics(),
@@ -179,7 +182,7 @@ export default async function MetricsPage() {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-4">SpaceRisk Metrics</h1>
+          <h1 className="text-3xl font-bold mb-4">Rental Tool Metrics</h1>
           <div className="bg-red-900/20 border border-red-700/50 p-6 rounded-lg">
             <h2 className="text-xl text-red-400 font-bold mb-2">⚠️ 数据引擎异常</h2>
             <p className="text-red-300">{shadowData.error}</p>
@@ -205,7 +208,7 @@ export default async function MetricsPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">SpaceRisk Metrics</h1>
+          <h1 className="text-3xl font-bold mb-2">Rental Tool Metrics</h1>
           <p className="text-slate-400">Beta 内测数据面板 · 抽样模式 (Top {sampleSize})</p>
           <p className="text-xs text-slate-500 mt-1">
             防白屏优化：只读取最新 {sampleSize} 条，服务端聚合后降维传输

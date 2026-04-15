@@ -1,25 +1,24 @@
 import type { Metadata } from "next";
-import { Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
+
+import { Providers } from "@/app/providers";
 import "./globals.css";
 
-const bodyFont = Noto_Sans_SC({
-  subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "700"],
-  display: "swap",
-});
-
-const displayFont = Noto_Serif_SC({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["500", "600", "700"],
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "SpaceRisk | 租房前空间风险预筛",
+  title: {
+    default: "上海社会生存沙盒",
+    template: "%s | 上海社会生存沙盒",
+  },
   description:
-    "像读一份现场勘验摘要那样，快速判断房源的采光、噪声、潮湿、隐私与改造成本风险。",
+    "面向外地应届生的上海社会生存沙盒，输出带官方来源的到沪落脚路线图，并保留资源库、训练场与专项工具。",
+  applicationName: "上海社会生存沙盒",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "上海社会生存沙盒",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -28,11 +27,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
-      <body
-        className={`${bodyFont.variable} ${displayFont.variable} bg-background font-sans text-foreground antialiased`}
-      >
-        {children}
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className="bg-background font-sans text-foreground antialiased">
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
