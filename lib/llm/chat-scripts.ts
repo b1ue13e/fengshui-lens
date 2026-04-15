@@ -9,7 +9,7 @@
  * 所有话术基于真实问题生成，不编造
  */
 
-import { EngineResult, Dimension } from "@/types";
+import { Dimension, EngineResult } from "@/lib/rent-tools/types";
 
 export interface ChatScript {
   scenario: 'negotiate' | 'repair' | 'renovation';

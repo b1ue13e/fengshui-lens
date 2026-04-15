@@ -1,4 +1,4 @@
-// SpaceRisk Core Types - 基于 lib/constants/evaluation.ts
+// Rental tool core types - 基于 lib/rent-tools/constants/evaluation.ts
 
 import type {
   LayoutType,
@@ -20,7 +20,7 @@ import type {
   ChatScenario,
   WindowExposure,
   UnitPosition,
-} from '@/lib/constants/evaluation';
+} from "@/lib/rent-tools/constants/evaluation";
 
 export type {
   LayoutType,

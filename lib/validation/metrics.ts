@@ -153,7 +153,7 @@ export function calculateMetrics(cases: ValidationCase[]): ValidationMetrics {
 export function generateMetricsReport(metrics: ValidationMetrics): string {
   const lines: string[] = [];
   
-  lines.push('=== SpaceRisk 验证指标报告 ===');
+  lines.push('=== 租房风险评估引擎验证指标报告 ===');
   lines.push('');
   lines.push(`总案例数: ${metrics.totalCases}`);
   lines.push(`Verdict 一致率: ${metrics.verdictMatchRate}%`);

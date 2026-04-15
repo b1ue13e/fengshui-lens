@@ -1,18 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <!-- 赛博道士：荧光透镜 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <style>
-    .lens { fill: #10b981; }
-    .ring { stroke: #10b981; stroke-width: 2; fill: none; }
-    .glow { filter: drop-shadow(0 0 4px #10b981); }
+    .bg { fill: #f3e5d6; }
+    .book { fill: #fff7ef; }
+    .book-line { fill: #dc7758; }
+    .badge { fill: #7ea393; }
+    .spark { fill: #f0bf62; }
     @media (prefers-color-scheme: dark) {
-      .lens { fill: #34d399; }
-      .ring { stroke: #34d399; }
+      .bg { fill: #2f251f; }
+      .book { fill: #f3e8dc; }
+      .book-line { fill: #ff9774; }
+      .badge { fill: #9dc2b0; }
+      .spark { fill: #ffd178; }
     }
   </style>
-  <!-- 外环 -->
-  <circle cx="16" cy="16" r="14" class="ring glow"/>
-  <!-- 内透镜 -->
-  <circle cx="16" cy="16" r="8" class="lens glow"/>
-  <!-- 十字准星 -->
-  <path d="M16 6v4M16 22v4M6 16h4M22 16h4" stroke="#10b981" stroke-width="1.5" class="glow"/>
+  <rect x="4" y="4" width="56" height="56" rx="18" class="bg" />
+  <path
+    class="badge"
+    d="M19 17.5c0-2.5 2-4.5 4.5-4.5h17c2.3 0 4.2 1.8 4.5 4.1l1.7 13.4c.2 1.3-.3 2.6-1.2 3.5l-7.5 7.5c-.9.9-2.1 1.3-3.4 1.2L21 41.5c-2.3-.2-4-2.1-4-4.4V17.5Z"
+  />
+  <path
+    class="book"
+    d="M18 22.5c0-3 2.4-5.5 5.5-5.5h8.2c2 0 3.8.8 5.1 2.2.5.5 1.2.8 1.9.8h2.8c2.8 0 5 2.2 5 5v17.7c0 1.3-1.4 2.1-2.5 1.4-2.8-1.8-6.5-2.8-10.2-2.8-3.2 0-6.1.8-8.7 2.3l-1.5.9c-1.1.7-2.6-.1-2.6-1.4V22.5Z"
+  />
+  <path
+    class="book-line"
+    d="M32 20.4c.9 0 1.6.7 1.6 1.6v18.3c0 .9-.7 1.6-1.6 1.6s-1.6-.7-1.6-1.6V22c0-.9.7-1.6 1.6-1.6Z"
+  />
+  <path
+    class="book-line"
+    d="M23.4 24.8c0-.8.7-1.5 1.5-1.5h4.5c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5h-4.5c-.8 0-1.5-.7-1.5-1.5Zm10.4 0c0-.8.7-1.5 1.5-1.5h5c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5h-5c-.8 0-1.5-.7-1.5-1.5Zm-10.4 5.9c0-.8.7-1.5 1.5-1.5h4.5c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5h-4.5c-.8 0-1.5-.7-1.5-1.5Zm10.4 0c0-.8.7-1.5 1.5-1.5h5c.8 0 1.5.7 1.5 1.5s-.7 1.5-1.5 1.5h-5c-.8 0-1.5-.7-1.5-1.5Z"
+  />
+  <path
+    class="spark"
+    d="M48.7 17.4 50 21l3.7 1.2-3.7 1.2-1.3 3.7-1.2-3.7-3.6-1.2 3.6-1.2 1.2-3.6Z"
+  />
 </svg>

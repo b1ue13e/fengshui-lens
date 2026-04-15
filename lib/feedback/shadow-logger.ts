@@ -67,7 +67,10 @@ export interface ShadowLogEntry {
 // 配置
 const CONFIG = {
   // 本地存储键名
-  STORAGE_KEY: 'spacerisk_shadow_logs',
+  STORAGE_KEY: 'young-study_rent_shadow_logs',
+  LEGACY_STORAGE_KEY: 'spacerisk_shadow_logs',
+  SESSION_STORAGE_KEY: 'young-study_rent_session_id',
+  LEGACY_SESSION_STORAGE_KEY: 'spacerisk_session_id',
   
   // 最大本地缓存数
   MAX_LOCAL_CACHE: 100,
@@ -92,12 +95,30 @@ function generateId(): string {
 function getSessionId(): string {
   if (typeof window === 'undefined') return 'server-side';
   
-  let sessionId = sessionStorage.getItem('spacerisk_session_id');
+  let sessionId =
+    sessionStorage.getItem(CONFIG.SESSION_STORAGE_KEY) ??
+    sessionStorage.getItem(CONFIG.LEGACY_SESSION_STORAGE_KEY);
   if (!sessionId) {
     sessionId = generateId();
-    sessionStorage.setItem('spacerisk_session_id', sessionId);
+    sessionStorage.setItem(CONFIG.SESSION_STORAGE_KEY, sessionId);
   }
   return sessionId;
+}
+
+function readStoredLogs(): ShadowLogEntry[] {
+  if (typeof window === 'undefined') return [];
+
+  return JSON.parse(
+    localStorage.getItem(CONFIG.STORAGE_KEY) ??
+      localStorage.getItem(CONFIG.LEGACY_STORAGE_KEY) ??
+      '[]'
+  );
+}
+
+function writeStoredLogs(logs: ShadowLogEntry[]): void {
+  if (typeof window === 'undefined') return;
+
+  localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
 }
 
 /**
@@ -159,7 +180,7 @@ function storeLog(entry: ShadowLogEntry): void {
   
   try {
     // 读取现有缓存
-    const existing = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+    const existing = readStoredLogs();
     
     // 添加新条目
     existing.push(entry);
@@ -170,7 +191,7 @@ function storeLog(entry: ShadowLogEntry): void {
     }
     
     // 写回存储
-    localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(existing));
+    writeStoredLogs(existing);
     
     // 达到批量上报阈值时触发同步
     if (existing.length >= CONFIG.BATCH_SIZE) {
@@ -188,7 +209,7 @@ export async function syncLogs(): Promise<void> {
   if (typeof window === 'undefined') return;
   
   try {
-    const logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+    const logs = readStoredLogs();
     if (logs.length === 0) return;
     
     // 发送到服务端（使用 Beacon API 确保页面关闭时也能发送）
@@ -199,7 +220,7 @@ export async function syncLogs(): Promise<void> {
     
     if (success) {
       // 清空已同步的日志
-      localStorage.removeItem(CONFIG.STORAGE_KEY);
+      clearLocalLogs();
     } else {
       // 降级：使用 fetch
       const response = await fetch('/api/feedback/shadow-log', {
@@ -210,7 +231,7 @@ export async function syncLogs(): Promise<void> {
       });
       
       if (response.ok) {
-        localStorage.removeItem(CONFIG.STORAGE_KEY);
+        clearLocalLogs();
       }
     }
   } catch (e) {
@@ -231,7 +252,7 @@ export function logUserFeedback(
 ): void {
   queueMicrotask(() => {
     try {
-      const logs = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+      const logs = readStoredLogs();
       const log = logs.find((l: ShadowLogEntry) => l.id === logId);
       
       if (log) {
@@ -239,7 +260,7 @@ export function logUserFeedback(
           timestamp: Date.now(),
           ...feedback,
         };
-        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(logs));
+        writeStoredLogs(logs);
         
         // 立即触发同步
         syncLogs();
@@ -257,7 +278,7 @@ export function getLocalLogs(): ShadowLogEntry[] {
   if (typeof window === 'undefined') return [];
   
   try {
-    return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || '[]');
+    return readStoredLogs();
   } catch {
     return [];
   }
@@ -269,6 +290,7 @@ export function getLocalLogs(): ShadowLogEntry[] {
 export function clearLocalLogs(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(CONFIG.STORAGE_KEY);
+  localStorage.removeItem(CONFIG.LEGACY_STORAGE_KEY);
 }
 
 // 统一 API 对象，供聚合模块使用

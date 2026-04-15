@@ -1,4 +1,4 @@
-import { EngineResult } from '@/types';
+import { EngineResult } from "@/lib/rent-tools/types";
 
 export function generateReportSummaryPrompt(result: EngineResult): string {
   const { overallScore, verdict, dimensions, risks, actions } = result;

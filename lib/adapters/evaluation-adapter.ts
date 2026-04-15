@@ -1,6 +1,11 @@
-import { Evaluation } from '@prisma/client';
-import { EvaluationReport, DimensionScore, Dimension } from '@/lib/engine/types';
-import { isVerdict } from '@/lib/constants/evaluation';
+import { Evaluation } from "@prisma/client";
+
+import {
+  Dimension,
+  DimensionScore,
+  EvaluationReport,
+} from "@/lib/rent-tools/types";
+import { isVerdict } from "@/lib/rent-tools/constants/evaluation";
 
 /**
  * 数据库模型 → 报告模型的纯格式转换

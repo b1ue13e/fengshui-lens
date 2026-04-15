@@ -4,13 +4,46 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // 确保支持动态路由
-  trailingSlash: false,
-  // 强制重新构建所有页面
-  generateBuildId: async () => {
-    return 'build-' + Date.now();
+  async redirects() {
+    return [
+      {
+        source: "/analyze",
+        destination: "/rent/tools/analyze",
+        permanent: true,
+      },
+      {
+        source: "/compare",
+        destination: "/rent/tools/compare",
+        permanent: true,
+      },
+      {
+        source: "/evaluate/:path*",
+        destination: "/rent/tools/evaluate/:path*",
+        permanent: true,
+      },
+      {
+        source: "/report/demo",
+        destination: "/rent/tools/report",
+        permanent: true,
+      },
+      {
+        source: "/report/:path*",
+        destination: "/rent/tools/report/:path*",
+        permanent: true,
+      },
+      {
+        source: "/result",
+        destination: "/rent/tools/result",
+        permanent: true,
+      },
+      {
+        source: "/scan",
+        destination: "/rent/tools/analyze",
+        permanent: true,
+      },
+    ];
   },
+  trailingSlash: false,
 };
 
 export default nextConfig;
-

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Check } from "lucide-react";
+import { Check, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type PageIntroProps = {
@@ -45,6 +45,11 @@ type NotePanelProps = {
   title: string;
   children: ReactNode;
   tone?: "default" | "warning";
+};
+
+type CoachTipProps = {
+  title: string;
+  items: string[];
 };
 
 export function PageIntro({
@@ -219,6 +224,26 @@ export function NotePanel({ title, children, tone = "default" }: NotePanelProps)
     >
       <p className="mb-1 font-medium text-foreground">{title}</p>
       <div>{children}</div>
+    </div>
+  );
+}
+
+export function CoachTip({ title, items }: CoachTipProps) {
+  return (
+    <div className="rounded-[1.35rem] border border-amber-200/80 bg-amber-50/90 px-4 py-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-amber-950">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <Lightbulb className="size-4" />
+        </span>
+        <span>{title}</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {items.map((item) => (
+          <p key={item} className="text-sm leading-7 text-amber-900/85">
+            {item}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

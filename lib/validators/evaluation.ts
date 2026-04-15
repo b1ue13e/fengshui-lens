@@ -13,7 +13,7 @@ import {
   BUDGET_RANGES,
   WINDOW_EXPOSURES,
   UNIT_POSITIONS,
-} from '@/lib/constants/evaluation';
+} from "@/lib/rent-tools/constants/evaluation";
 
 // 基础信息验证
 export const basicInfoSchema = z.object({
