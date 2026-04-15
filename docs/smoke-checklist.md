@@ -93,6 +93,8 @@
   - `/design`
   - `/dev/cases`
   - `/dev/metrics`
+
+鐪熷疄 Supabase 椤圭洰鐨勮缁嗚仈璋冩竻鍗曡瑙侊細`docs/supabase-cloud-checklist.md`
 - 如果显式设置 `ENABLE_INTERNAL_PAGES=true`，上述路径才应重新开放
 
 ## 收口通过标准

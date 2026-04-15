@@ -71,4 +71,6 @@ supabase/seeds/young-study.seed.json
 - `user_toolkit_states`
 - `feedback_submissions`
 
+濡傛灉杩樿鍚屾椂楠岃瘉鐧诲綍銆佽繘搴﹀悓姝ャ€?`route_plans` 鍜岃法璐﹀彿闅旂锛岃鍚屾椂瀵圭収锛歚docs/supabase-cloud-checklist.md`
+
 这些表会在真实用户使用过程中自然生成。

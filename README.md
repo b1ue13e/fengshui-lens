@@ -160,6 +160,8 @@ npm run build
 npm run smoke:routes
 ```
 
+Supabase 鐪熷疄鐜鑱旇皟娓呭崟锛歚docs/supabase-cloud-checklist.md`
+
 `npm run smoke:routes` 会复用当前 `.next` 生产构建产物，所以要先成功跑过一次 `npm run build`。
 
 ## 后续扩展建议
