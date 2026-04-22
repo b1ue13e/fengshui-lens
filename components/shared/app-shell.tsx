@@ -1,87 +1,104 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, BookOpen, Compass, Home, MessagesSquare, Search, UserRound, Wrench } from "lucide-react";
+import { Menu, X, Home, House, MapPinned, Search, UserRound, BookOpen } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import { FloatingToast } from "@/components/shared/floating-toast";
-import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "沙盒", icon: Home },
-  { href: "/categories", label: "资源库", icon: Compass },
-  { href: "/paths", label: "路线", icon: BookOpen },
-  { href: "/toolkit", label: "工具", icon: Wrench },
-  { href: "/simulator", label: "训练场", icon: MessagesSquare },
-  { href: "/profile", label: "我的", icon: UserRound },
-];
+  { href: "/", label: "首页", icon: Home, match: ["/"] },
+  { href: "/rent/tools", label: "租房判断", icon: House, match: ["/rent"] },
+  { href: "/survival-plans/start", label: "到沪路线", icon: MapPinned, match: ["/survival-plans"] },
+  {
+    href: "/resources",
+    label: "学习",
+    icon: BookOpen,
+    match: ["/resources", "/categories", "/paths", "/toolkit", "/simulator", "/scenario"],
+  },
+  { href: "/search", label: "搜索", icon: Search, match: ["/search"] },
+  { href: "/profile", label: "我的", icon: UserRound, match: ["/profile"] },
+] as const;
 
-function matchesPath(currentPath: string, target: string) {
-  return target === "/" ? currentPath === "/" : currentPath.startsWith(target);
+function isActive(pathname: string, matches: readonly string[]) {
+  return matches.some((target) => (target === "/" ? pathname === "/" : pathname.startsWith(target)));
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(244,140,92,0.16),transparent_26%),radial-gradient(circle_at_78%_12%,rgba(101,164,145,0.17),transparent_28%),radial-gradient(circle_at_50%_100%,rgba(246,205,122,0.12),transparent_24%)]" />
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-6">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-[1.2rem] bg-primary text-sm font-semibold text-primary-foreground shadow-[0_14px_22px_rgba(215,104,78,0.2)]">
-              沪
-            </div>
-            <div className="leading-tight">
-              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Social Sandbox</p>
-              <p className="text-base font-semibold text-foreground">上海社会生存沙盒</p>
-            </div>
+    <div className="min-h-screen bg-neutral-50 text-neutral-900">
+      <header className="sticky top-0 z-50 border-b border-neutral-200 bg-white shadow-sm">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+          <Link href="/" className="text-lg font-bold tracking-tight text-neutral-900">
+            青年大学习
           </Link>
 
-          <div className="flex items-center gap-2">
-            <Link href="/search">
-              <Button variant="outline" size="icon-sm" className="rounded-full border-white/60 bg-background/70">
-                <Search className="size-4" />
-              </Button>
-            </Link>
-            <Link href="/scenario/call-police">
-              <Button variant="destructive" size="sm" className="rounded-full px-3">
-                <AlertCircle className="size-4" />
-                紧急卡
-              </Button>
-            </Link>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pb-28 pt-5 md:px-6 md:pb-12 md:pt-8">
-        {children}
-      </main>
-
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/92 px-2 py-2 backdrop-blur-xl md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-6 gap-1">
-          {navItems.map((item) => {
-            const active = matchesPath(pathname, item.href);
-
-            return (
+          <nav className="hidden items-center gap-1 md:flex">
+            {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-[1rem] px-2 py-2 text-[0.72rem] text-muted-foreground transition-colors",
-                  active && "bg-card text-foreground shadow-[0_10px_20px_rgba(35,42,33,0.08)]"
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive(pathname, item.match)
+                    ? "bg-neutral-900 text-white"
+                    : "text-neutral-600 hover:bg-neutral-100"
                 )}
               >
-                <item.icon className="size-4" />
-                <span>{item.label}</span>
+                {item.label}
               </Link>
-            );
-          })}
+            ))}
+          </nav>
+
+          <button
+            type="button"
+            className="rounded-md p-2 transition hover:bg-neutral-100 md:hidden"
+            onClick={() => setMenuOpen((current) => !current)}
+            aria-label="打开导航菜单"
+          >
+            {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
         </div>
-      </nav>
+
+        {menuOpen ? (
+          <div className="border-t border-neutral-200 bg-white md:hidden">
+            <div className="mx-auto max-w-5xl space-y-1 px-4 py-2">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(pathname, item.match);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                      active ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </header>
+
+      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+
+      <footer className="mt-12 border-t border-neutral-200 bg-white">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-neutral-500 md:flex-row">
+          <p>青年大学习 — 现实决策训练系统</p>
+          <p>当前版本专注：上海首次租房决策与落地承接</p>
+        </div>
+      </footer>
 
       <FloatingToast />
     </div>
