@@ -21,6 +21,8 @@
   <a href="#产品截图"><strong>看截图</strong></a> ·
   <a href="#快速开始"><strong>快速开始</strong></a> ·
   <a href="#产品架构图"><strong>看架构</strong></a> ·
+  <a href="./ROADMAP.md"><strong>看 Roadmap</strong></a> ·
+  <a href="./CONTRIBUTING.md"><strong>参与贡献</strong></a> ·
   <a href="https://github.com/b1ue13e/fengshui-lens/issues"><strong>提需求 / 报问题</strong></a>
 </p>
 
