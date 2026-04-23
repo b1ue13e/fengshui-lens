@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest a feature, improvement, or product direction
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      placeholder: What user problem or product gap is this feature addressing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: Describe the feature or improvement you want.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Homepage
+        - Rent decision flow
+        - Report / Compare
+        - Shanghai settlement handoff
+        - Categories / Scenarios
+        - Search / discovery
+        - Docs / README
+        - DevEx / tooling
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_now
+    attributes:
+      label: Why is this important now?
+      placeholder: Why should this be prioritized?
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: References / examples
+      placeholder: Links, screenshots, or examples from other products.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues first
+          required: true
+        - label: This request is aligned with the product direction rather than making the app more portal-like
+          required: true

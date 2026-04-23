@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Product direction / roadmap
+    url: https://github.com/b1ue13e/fengshui-lens/blob/main/ROADMAP.md
+    about: Read the roadmap before opening a strategy-level request.
+  - name: Contributing guide
+    url: https://github.com/b1ue13e/fengshui-lens/blob/main/CONTRIBUTING.md
+    about: Read the contributing guide before opening a large implementation proposal.
