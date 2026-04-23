@@ -1,4 +1,4 @@
-// Rental tool core types - 基于 lib/rent-tools/constants/evaluation.ts
+// Rental tool core types
 
 import type {
   LayoutType,
@@ -20,6 +20,13 @@ import type {
   ChatScenario,
   WindowExposure,
   UnitPosition,
+  CommuteTolerance,
+  PaymentCycle,
+  LandlordType,
+  ContractVisibility,
+  ListingMatchLevel,
+  SharedSpaceRules,
+  DecisionPillar,
 } from "@/lib/rent-tools/constants/evaluation";
 
 export type {
@@ -42,7 +49,43 @@ export type {
   ChatScenario,
   WindowExposure,
   UnitPosition,
+  CommuteTolerance,
+  PaymentCycle,
+  LandlordType,
+  ContractVisibility,
+  ListingMatchLevel,
+  SharedSpaceRules,
+  DecisionPillar,
 };
+
+export const REPORT_DECISION_OUTCOMES = [
+  "went_to_view",
+  "rented",
+  "signed_elsewhere",
+  "not_rented",
+  "still_looking",
+] as const;
+export type ReportDecisionOutcome = (typeof REPORT_DECISION_OUTCOMES)[number];
+
+export const REPORT_ACCURACY_FEEDBACK_OPTIONS = [
+  "helpful",
+  "missed_risk",
+  "got_burned",
+] as const;
+export type ReportAccuracyFeedback =
+  (typeof REPORT_ACCURACY_FEEDBACK_OPTIONS)[number];
+
+export const REPORT_FEEDBACK_CATEGORIES = [
+  "cash_flow",
+  "commute",
+  "contract",
+  "listing_trust",
+  "flatshare",
+  "space",
+  "other",
+] as const;
+export type ReportFeedbackCategory =
+  (typeof REPORT_FEEDBACK_CATEGORIES)[number];
 
 // ========== 输入类型 ==========
 export interface EvaluationInput {
@@ -67,13 +110,24 @@ export interface EvaluationInput {
   bedPosition: BedPosition;
   deskPosition: DeskPosition;
   ventilation: Ventilation;
-  dampSigns?: string[];
+  dampSigns?: readonly string[];
   isShared: boolean;
   roommateSituation?: string;
 
-  // Step 3: 居住需求
+  // Step 3: 决策约束
   primaryGoal: PrimaryGoal;
   monthlyBudget: BudgetRange;
+  commuteMinutes?: number;
+  commuteTolerance?: CommuteTolerance;
+  monthlyRent?: number;
+  estimatedMonthlyBills?: number;
+  depositMonths?: number;
+  paymentCycle?: PaymentCycle;
+  agentFeeMonths?: number;
+  landlordType?: LandlordType;
+  contractVisibility?: ContractVisibility;
+  listingMatchLevel?: ListingMatchLevel;
+  sharedSpaceRules?: SharedSpaceRules;
   allowsLightRenovation: boolean;
   allowsFurnitureMove: boolean;
   allowsSoftImprovements: boolean;
@@ -101,6 +155,19 @@ export interface DimensionScore {
   factors: ScoreFactor[];
 }
 
+export type DecisionPillarStatus = "solid" | "verify" | "danger";
+
+export interface DecisionPillarAssessment {
+  pillar: DecisionPillar;
+  label: string;
+  score: number;
+  status: DecisionPillarStatus;
+  headline: string;
+  summary: string;
+  evidence: string[];
+  nextStep: string;
+}
+
 // ========== 风险类型 ==========
 export interface RiskItem {
   id: string;
@@ -110,6 +177,8 @@ export interface RiskItem {
   description: string;
   modernReason?: string;
   mitigable?: boolean;
+  source?: "space" | "decision";
+  pillar?: DecisionPillar;
 }
 
 // ========== 动作类型 ==========
@@ -146,23 +215,75 @@ export interface ChatScript {
   content: string;
 }
 
+export interface DecisionSnapshot {
+  headline: string;
+  topEvidence: string[];
+  nextAction: string;
+  shareText: string;
+}
+
 // ========== 引擎结果 ==========
 export interface EngineResult {
   scores: Record<Dimension, number>;
+  spaceScore?: number;
   overallScore: number;
   dimensions: DimensionScore[];
+  decisionPillars?: DecisionPillarAssessment[];
   risks: RiskItem[];
   actions: RecommendedAction[];
   verdict: Verdict;
-  decisionNote?: import('./decision-note').DecisionNote;  // 决策提示（可选）
+  decisionNote?: import("./decision-note").DecisionNote;
 }
 
 // ========== 完整报告（存储用） ==========
 export interface EvaluationReport extends EngineResult {
   id: string;
   createdAt: Date;
+  input: EvaluationInput;
   summaryText: string;
   chatScripts: ChatScript[];
+  decisionSnapshot: DecisionSnapshot;
+}
+
+export interface RentToolReportFeedbackRecord {
+  id: string;
+  reportId: string;
+  userId?: string;
+  decisionOutcome?: ReportDecisionOutcome;
+  accuracyFeedback?: ReportAccuracyFeedback;
+  blockingCategory?: ReportFeedbackCategory;
+  missedRiskCategory?: ReportFeedbackCategory;
+  note?: string;
+  createdAt: Date;
+}
+
+export interface ReportFeedbackCountItem<TKey extends string = string> {
+  key: TKey;
+  label: string;
+  count: number;
+}
+
+export interface ReportFeedbackRecentEntry {
+  id: string;
+  reportId: string;
+  verdict?: Verdict;
+  decisionOutcome?: ReportDecisionOutcome;
+  accuracyFeedback?: ReportAccuracyFeedback;
+  blockingCategory?: ReportFeedbackCategory;
+  missedRiskCategory?: ReportFeedbackCategory;
+  note?: string;
+  createdAt: Date;
+}
+
+export interface ReportFeedbackMetrics {
+  total: number;
+  outcomeCounts: ReportFeedbackCountItem<ReportDecisionOutcome>[];
+  accuracyCounts: ReportFeedbackCountItem<ReportAccuracyFeedback>[];
+  blockingCategoryCounts: ReportFeedbackCountItem<ReportFeedbackCategory>[];
+  missedRiskCategoryCounts: ReportFeedbackCountItem<ReportFeedbackCategory>[];
+  negotiableMissCounts: ReportFeedbackCountItem<ReportFeedbackCategory>[];
+  verifyToHardRiskCounts: ReportFeedbackCountItem<ReportFeedbackCategory>[];
+  recentEntries: ReportFeedbackRecentEntry[];
 }
 
 // ========== 规则类型 ==========
@@ -172,7 +293,7 @@ export interface Rule {
   condition: (input: NormalizedInput) => boolean;
   effects: {
     scoreDeltas?: Partial<Record<Dimension, number>>;
-    risk?: Omit<RiskItem, 'id'>;
+    risk?: Omit<RiskItem, "id">;
     actionHints?: string[];
   };
 }

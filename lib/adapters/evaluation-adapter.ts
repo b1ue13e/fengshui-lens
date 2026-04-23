@@ -1,28 +1,21 @@
 import { Evaluation } from "@prisma/client";
 
+import { buildDecisionSnapshot } from "../rent-tools/decision-snapshot";
+import {
+  assessDecisionPillars,
+} from "../rent-tools/decision-pillars";
 import {
   Dimension,
   DimensionScore,
+  EvaluationInput,
   EvaluationReport,
-} from "@/lib/rent-tools/types";
-import { isVerdict } from "@/lib/rent-tools/constants/evaluation";
-
-/**
- * 数据库模型 → 报告模型的纯格式转换
- * 
- * 原则：
- * 1. 只负责数据形状转换，不做业务逻辑判断
- * 2. 排序、截断、verdict计算应在引擎层完成
- * 3. 使用类型守卫确保数据合法性
- */
+} from "../rent-tools/types";
+import { isVerdict } from "../rent-tools/constants/evaluation";
 
 interface RawEvaluation extends Evaluation {
   [key: string]: unknown;
 }
 
-/**
- * 解析六维分数
- */
 function parseScores(db: RawEvaluation): Record<Dimension, number> {
   return {
     lighting: clampScore(db.scoreLighting),
@@ -34,33 +27,37 @@ function parseScores(db: RawEvaluation): Record<Dimension, number> {
   };
 }
 
-/**
- * 分数限制在 0-100 范围（系统不变量）
- */
 function clampScore(score: unknown): number {
-  if (typeof score !== 'number' || Number.isNaN(score)) return 70;
+  if (typeof score !== "number" || Number.isNaN(score)) {
+    return 70;
+  }
+
   return Math.max(0, Math.min(100, score));
 }
 
-/**
- * 构建维度详情数组（保持与引擎输出一致的结构）
- */
 function buildDimensions(scores: Record<Dimension, number>): DimensionScore[] {
-  const dimensions: Dimension[] = ['lighting', 'noise', 'dampness', 'privacy', 'circulation', 'focus'];
-  
-  return dimensions.map(dim => ({
-    dimension: dim,
-    score: scores[dim],
-    weight: 1,  // 从DB恢复时权重信息丢失，使用默认值
-    factors: [],  // 从DB恢复时因子详情丢失
+  const dimensions: Dimension[] = [
+    "lighting",
+    "noise",
+    "dampness",
+    "privacy",
+    "circulation",
+    "focus",
+  ];
+
+  return dimensions.map((dimension) => ({
+    dimension,
+    score: scores[dimension],
+    weight: 1,
+    factors: [],
   }));
 }
 
-/**
- * 安全解析 JSON 字段
- */
 function safeParse<T>(json: string | null, defaultValue: T): T {
-  if (!json) return defaultValue;
+  if (!json) {
+    return defaultValue;
+  }
+
   try {
     return JSON.parse(json) as T;
   } catch {
@@ -68,51 +65,128 @@ function safeParse<T>(json: string | null, defaultValue: T): T {
   }
 }
 
-/**
- * 验证 verdict 值（使用类型守卫）
- */
-function validateVerdict(verdict: unknown): 'rent' | 'cautious' | 'avoid' {
-  if (typeof verdict === 'string' && isVerdict(verdict)) {
+function validateVerdict(verdict: unknown): "rent" | "cautious" | "avoid" {
+  if (typeof verdict === "string" && isVerdict(verdict)) {
     return verdict;
   }
-  // 兼容旧数据的大写格式
-  if (verdict === 'RENT') return 'rent';
-  if (verdict === 'CAUTIOUS') return 'cautious';
-  if (verdict === 'AVOID') return 'avoid';
-  return 'cautious';  // 默认值
+
+  if (verdict === "RENT") {
+    return "rent";
+  }
+
+  if (verdict === "CAUTIOUS") {
+    return "cautious";
+  }
+
+  if (verdict === "AVOID") {
+    return "avoid";
+  }
+
+  return "cautious";
 }
 
-/**
- * 主转换函数：DB Model → EvaluationReport
- */
-export function toEvaluationReport(db: RawEvaluation): EvaluationReport {
-  const scores = parseScores(db);
-  const detectedRisks = safeParse(db.detectedRisks as string, []);
-  const recommendedActions = safeParse(db.recommendedActions as string, []);
-  const chatScripts = safeParse(db.chatScripts as string, []);
-  
+function buildInput(db: RawEvaluation): EvaluationInput {
   return {
-    // 元数据
-    id: db.id,
-    createdAt: db.createdAt,
-    
-    // 引擎输出（核心）
-    scores,
-    overallScore: clampScore(db.scoreOverall),
-    dimensions: buildDimensions(scores),
-    risks: detectedRisks,
-    actions: recommendedActions,
-    verdict: validateVerdict(db.verdict),
-    
-    // 报告专属字段
-    summaryText: db.summaryText || '',
-    chatScripts,
+    layoutType: String(db.layoutType) as EvaluationInput["layoutType"],
+    areaSqm: Number(db.areaSqm) || 0,
+    orientation: String(db.orientation) as EvaluationInput["orientation"],
+    floorLevel: String(db.floorLevel) as EvaluationInput["floorLevel"],
+    totalFloors: Number(db.totalFloors) || 0,
+    hasElevator: Boolean(db.hasElevator),
+    buildingAge: String(db.buildingAge) as EvaluationInput["buildingAge"],
+    hasWestFacingWindow: Boolean(db.hasWestFacingWindow),
+    windowExposure: String(db.windowExposure) as EvaluationInput["windowExposure"],
+    facesMainRoad: Boolean(db.facesMainRoad),
+    nearElevator: Boolean(db.nearElevator),
+    unitPosition: String(db.unitPosition) as EvaluationInput["unitPosition"],
+    hasBalcony: Boolean(db.hasBalcony),
+    kitchenType: String(db.kitchenType) as EvaluationInput["kitchenType"],
+    bathroomPosition: String(db.bathroomPosition) as EvaluationInput["bathroomPosition"],
+    bedPosition: String(db.bedPosition) as EvaluationInput["bedPosition"],
+    deskPosition: String(db.deskPosition) as EvaluationInput["deskPosition"],
+    ventilation: String(db.ventilation) as EvaluationInput["ventilation"],
+    dampSigns: safeParse(db.dampSigns as string, []),
+    isShared: Boolean(db.isShared),
+    roommateSituation:
+      typeof db.roommateSituation === "string" ? db.roommateSituation : undefined,
+    primaryGoal: String(db.primaryGoal) as EvaluationInput["primaryGoal"],
+    monthlyBudget: String(db.monthlyBudget) as EvaluationInput["monthlyBudget"],
+    commuteMinutes: typeof db.commuteMinutes === "number" ? db.commuteMinutes : undefined,
+    commuteTolerance:
+      typeof db.commuteTolerance === "string"
+        ? (db.commuteTolerance as EvaluationInput["commuteTolerance"])
+        : undefined,
+    monthlyRent: typeof db.monthlyRent === "number" ? db.monthlyRent : undefined,
+    estimatedMonthlyBills:
+      typeof db.estimatedMonthlyBills === "number" ? db.estimatedMonthlyBills : undefined,
+    depositMonths: typeof db.depositMonths === "number" ? db.depositMonths : undefined,
+    paymentCycle:
+      typeof db.paymentCycle === "string"
+        ? (db.paymentCycle as EvaluationInput["paymentCycle"])
+        : undefined,
+    agentFeeMonths: typeof db.agentFeeMonths === "number" ? db.agentFeeMonths : undefined,
+    landlordType:
+      typeof db.landlordType === "string"
+        ? (db.landlordType as EvaluationInput["landlordType"])
+        : undefined,
+    contractVisibility:
+      typeof db.contractVisibility === "string"
+        ? (db.contractVisibility as EvaluationInput["contractVisibility"])
+        : undefined,
+    listingMatchLevel:
+      typeof db.listingMatchLevel === "string"
+        ? (db.listingMatchLevel as EvaluationInput["listingMatchLevel"])
+        : undefined,
+    sharedSpaceRules:
+      typeof db.sharedSpaceRules === "string"
+        ? (db.sharedSpaceRules as EvaluationInput["sharedSpaceRules"])
+        : undefined,
+    allowsLightRenovation: Boolean(db.allowsLightRenovation),
+    allowsFurnitureMove: Boolean(db.allowsFurnitureMove),
+    allowsSoftImprovements: Boolean(db.allowsSoftImprovements),
   };
 }
 
-/**
- * 批量转换
- */
+export function toEvaluationReport(db: RawEvaluation): EvaluationReport {
+  const scores = parseScores(db);
+  const dimensions = buildDimensions(scores);
+  const input = buildInput(db);
+  const risks = safeParse(db.detectedRisks as string, []);
+  const actions = safeParse(db.recommendedActions as string, []);
+  const chatScripts = safeParse(db.chatScripts as string, []);
+  const verdict = validateVerdict(db.verdict);
+  const overallScore = clampScore(db.scoreOverall);
+  const spaceScore = overallScore;
+  const decisionPillars = assessDecisionPillars(input, scores);
+  const decisionSnapshot = buildDecisionSnapshot({
+    scores,
+    spaceScore,
+    overallScore,
+    dimensions,
+    decisionPillars,
+    risks,
+    actions,
+    verdict,
+  });
+
+  return {
+    id: db.id,
+    createdAt: db.createdAt,
+    input,
+    scores,
+    spaceScore,
+    overallScore,
+    dimensions,
+    decisionPillars,
+    risks,
+    actions,
+    verdict,
+    summaryText: db.summaryText || "",
+    chatScripts,
+    decisionSnapshot,
+  };
+}
+
 export function toEvaluationReports(dbs: RawEvaluation[]): EvaluationReport[] {
   return dbs.map(toEvaluationReport);
 }
